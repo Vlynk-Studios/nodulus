@@ -81,7 +81,17 @@ export async function createApp(
   }
 
   if (preloaderActive) {
-      const currentVersion = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')).version;
+      const getPkg = () => {
+        const depths = ['../package.json', '../../package.json', '../../../package.json'];
+        for (const d of depths) {
+          try {
+            const p = new URL(d, import.meta.url);
+            return JSON.parse(fs.readFileSync(p, 'utf8'));
+          } catch (_e) { /* not a valid package.json path, try next */ }
+        }
+        return {};
+      };
+      const currentVersion = getPkg().version;
       if (preloadConfig?._version && preloadConfig._version !== currentVersion) {
           log.warn(`Pre-loader version mismatch. Pre-loader: ${preloadConfig._version}, Core: ${currentVersion}.`, { suggestion: 'Run "npx nodulus sync-preload" to update it.' });
       }

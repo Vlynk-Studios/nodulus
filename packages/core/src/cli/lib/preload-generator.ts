@@ -1,5 +1,12 @@
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { NodulusConfig } from '../../types/index.js';
+
+// Resolved at CLI execution time — points to the bundled preload-hook alongside this file.
+const HOOK_URL = pathToFileURL(
+  path.resolve(fileURLToPath(import.meta.url), '../../preload/preload-hook.js')
+).href;
+
 
 export function generatePreloadFile(config: NodulusConfig, version: string, cwd: string): string {
   let modulesBase = 'src/modules';
@@ -59,7 +66,7 @@ ${aliasesEntries}
 globalThis.__NODULUS_PRELOAD_CONFIG__ = NODULUS_PRELOAD_CONFIG;
 
 register(
-  new URL('../node_modules/@vlynk-studios/nodulus-core/dist/preload-hook.js', import.meta.url),
+  '${HOOK_URL}',
   { parentURL: pathToFileURL(resolve(__dirname, '../')).href, data: NODULUS_PRELOAD_CONFIG }
 );
 `;

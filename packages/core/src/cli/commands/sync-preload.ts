@@ -6,8 +6,17 @@ import { loadConfig } from '../../core/config.js';
 import { generatePreloadFile } from '../lib/preload-generator.js';
 import { createLogger, defaultLogHandler } from '../../core/logger.js';
 
-const pkgPath = new URL('../../../package.json', import.meta.url);
-const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+const getPkg = () => {
+  const depths = ['../package.json', '../../package.json', '../../../package.json'];
+  for (const d of depths) {
+    try {
+      const p = new URL(d, import.meta.url);
+      return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch (_e) { /* not a valid package.json path, try next */ }
+  }
+  return {};
+};
+const pkg = getPkg();
 
 export function syncPreloadCommand(): Command {
   const sync = new Command('sync-preload');

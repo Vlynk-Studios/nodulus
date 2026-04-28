@@ -16,5 +16,13 @@ export default defineConfig([
     outDir: 'dist/cli',
     sourcemap: true,
     target: 'node20',
+  },
+  {
+    entry: ['src/preload/preload-hook.ts'],
+    format: ['esm'],
+    outDir: 'dist/preload',
+    target: 'node20',
+    minify: false,
+    sourcemap: true,
   }
 ]);
