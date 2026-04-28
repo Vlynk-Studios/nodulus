@@ -49,6 +49,57 @@ npm install express
 
 ---
 
+## Getting Started with the Pre-loader _(v1.5.0+)_
+
+By default, the Node.js ESM hook activates **inside** `createApp()`. This means aliases like `@config/database` are **not** available in static top-level imports in your server entry file:
+
+```ts
+// ❌ This fails if the pre-loader is not active
+import { db } from '@config/database.js'  // MODULE_NOT_FOUND
+
+const app = express()
+await createApp(app)
+```
+
+The **runtime pre-loader** solves this by registering the ESM hook before your code runs.
+
+### Setup (one-time)
+
+**1. Generate the pre-loader file:**
+```bash
+npx nodulus sync-preload
+```
+
+This creates `.nodulus/preload.js` — commit it to version control.
+
+**2. Update your `package.json` scripts:**
+```json
+{
+  "scripts": {
+    "dev":   "nodulus dev src/server.ts",
+    "start": "node --import ./.nodulus/preload.js src/server.ts"
+  }
+}
+```
+
+**3. Aliases now work everywhere:**
+```ts
+// ✅ Works with the pre-loader active
+import { db } from '@config/database.js'
+import { UserService } from '@modules/users'
+
+const app = express()
+const { runtime } = await createApp(app)
+console.log(runtime.preloaderActive) // true
+```
+
+**Re-run `sync-preload` whenever you add or rename aliases.** The command is idempotent — if nothing changed, the file is not rewritten.
+
+> [!NOTE]
+> **Backward compatible.** Without the pre-loader, aliases still work inside modules discovered by `createApp()`. Only top-level imports in your entry file require the pre-loader.
+
+---
+
 ## Quick start
 
 ```ts

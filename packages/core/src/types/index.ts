@@ -172,9 +172,15 @@ export interface CreateAppOptions {
   logLevel?: LogLevel;
   /** NITS (Nodulus Integrated Tracking System) configuration. */
   nits?: NitsConfig;
-  /** 
-   * If true, prevents the app from starting if the pre-loader was not injected.
-   * Default: false.
+  /**
+   * When `true`, `createApp()` throws `PRELOADER_REQUIRED` if the runtime pre-loader
+   * is not active (i.e., the process was not started with `--import ./.nodulus/preload.js`).
+   *
+   * Use this to enforce that top-level alias resolution is always available in
+   * environments that require it (e.g. strict production deployments).
+   *
+   * @default false
+   * @since v1.5.0
    */
   requirePreloader?: boolean;
 }
@@ -239,9 +245,26 @@ export interface NodulusApp {
   modules: RegisteredModule[];
   routes: MountedRoute[];
   registry: NodulusRegistry;
+  /**
+   * Runtime metadata about the Nodulus pre-loader.
+   * Populated during Step 0 of the bootstrap pipeline.
+   * @since v1.5.0
+   */
   runtime: {
+    /**
+     * `true` when the process was started with `--import ./.nodulus/preload.js`,
+     * meaning top-level alias resolution is available.
+     */
     preloaderActive: boolean;
+    /**
+     * The version of `nodulus-core` that generated `.nodulus/preload.js`,
+     * or `null` if the pre-loader is not active.
+     */
     preloaderVersion: string | null;
+    /**
+     * Snapshot of all aliases that were active at bootstrap time.
+     * Empty object when the pre-loader is not active.
+     */
     aliasesAtBoot: Record<string, string>;
   };
 }
