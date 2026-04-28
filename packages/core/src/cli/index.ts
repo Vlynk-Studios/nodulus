@@ -3,6 +3,8 @@ import { Command } from 'commander'
 import { createModuleCommand } from './commands/create-module.js'
 import { syncTsconfigCommand } from './commands/sync-tsconfig.js'
 import { checkCommand } from './commands/check.js'
+import { devCommand } from './commands/dev.js'
+import { syncPreloadCommand } from './commands/sync-preload.js'
 
 import { createRequire } from 'node:module';
 
@@ -17,6 +19,8 @@ program
   .addCommand(createModuleCommand())
   .addCommand(syncTsconfigCommand())
   .addCommand(checkCommand())
+  .addCommand(devCommand())
+  .addCommand(syncPreloadCommand())
   .exitOverride();
 
 try {
