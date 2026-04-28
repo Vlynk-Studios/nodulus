@@ -19,8 +19,10 @@ export async function resolve(
   }
 
   const aliases = config.aliases;
+  const sortedAliases = Object.keys(aliases).sort((a, b) => b.length - a.length);
 
-  for (const [alias, target] of Object.entries(aliases)) {
+  for (const alias of sortedAliases) {
+    const target = aliases[alias];
     if (alias.endsWith('/*')) {
       const baseAlias = alias.slice(0, -2);
       if (specifier === baseAlias || specifier.startsWith(baseAlias + '/')) {
