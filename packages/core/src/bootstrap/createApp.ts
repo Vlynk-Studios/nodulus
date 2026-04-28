@@ -59,9 +59,33 @@ export async function createApp(
     const startTime = performance.now();
     try {
 
+  // Step 0.1 — Pre-loader Validation
+  const preloadConfig = globalThis.__NODULUS_PRELOAD_CONFIG__;
+  const preloaderActive = preloadConfig?.preloaded === true;
+
+  if (options.requirePreloader === true && !preloaderActive) {
+    throw new NodulusError(
+      'PRELOADER_REQUIRED',
+      'The application requires the Nodulus pre-loader to be active.',
+      'Run the application with "node --import ./.nodulus/preload.js" or set requirePreloader: false in createApp options.'
+    );
+  }
+
   // Step 1 — Load configuration
   const config = await loadConfig(options);
   const log = createLogger(config.logger, config.logLevel);
+
+  // Step 1.1 — Pre-loader Warnings
+  if (!preloaderActive && config.resolveAliases !== false) {
+    log.warn('Pre-loader not detected. Alias resolution might fail for top-level imports. Running in legacy mode (v1.4.0).', { suggestion: 'Run "npx nodulus sync-preload" and use "node --import ./.nodulus/preload.js"' });
+  }
+
+  if (preloaderActive) {
+      const currentVersion = JSON.parse(fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')).version;
+      if (preloadConfig?._version && preloadConfig._version !== currentVersion) {
+          log.warn(`Pre-loader version mismatch. Pre-loader: ${preloadConfig._version}, Core: ${currentVersion}.`, { suggestion: 'Run "npx nodulus sync-preload" to update it.' });
+      }
+  }
 
   if (config.domains || config.shared) {
     log.warn('Infrastructure (domains/shared) is not yet supported in v1.2.x. These keys in configuration will be ignored until v2.0.0.');
@@ -484,7 +508,12 @@ export async function createApp(
     return {
       modules: safeRegisteredModules,
       routes: mountedRoutes,
-      registry
+      registry,
+      runtime: {
+        preloaderActive,
+        preloaderVersion: preloadConfig?._version ?? null,
+        aliasesAtBoot: preloadConfig?.aliases ?? {}
+      }
     };
 
     } catch (err) {

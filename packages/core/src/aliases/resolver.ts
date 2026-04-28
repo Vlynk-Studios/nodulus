@@ -26,6 +26,15 @@ export function clearAliasResolverOptions(): void {
   _registrationPromise = null;
 }
 
+function mergeAliasesIntoPreloadConfig(aliases: Record<string, string>): void {
+  if (globalThis.__NODULUS_PRELOAD_CONFIG__) {
+    globalThis.__NODULUS_PRELOAD_CONFIG__.aliases = {
+      ...globalThis.__NODULUS_PRELOAD_CONFIG__.aliases,
+      ...aliases
+    };
+  }
+}
+
 /**
  * Activates the runtime ESM alias resolver hook.
  * 
@@ -58,6 +67,14 @@ export async function activateAliasResolver(moduleAliases: Record<string, string
 
   const combinedAliases = { ...normalizedModuleAliases, ...normalizedFolderAliases };
   const serialisedAliases = JSON.stringify(combinedAliases);
+
+  if (globalThis.__NODULUS_PRELOAD_CONFIG__?.preloaded === true) {
+    mergeAliasesIntoPreloadConfig(combinedAliases);
+    log.info(`ESM alias hook skipped (handled by pre-loader), merged ${Object.keys(combinedAliases).length} alias(es) into runtime config`, {
+      aliasCount: Object.keys(combinedAliases).length,
+    });
+    return;
+  }
 
   if (registeredHashes.has(serialisedAliases)) return;
 

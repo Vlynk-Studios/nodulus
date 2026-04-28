@@ -172,6 +172,11 @@ export interface CreateAppOptions {
   logLevel?: LogLevel;
   /** NITS (Nodulus Integrated Tracking System) configuration. */
   nits?: NitsConfig;
+  /** 
+   * If true, prevents the app from starting if the pre-loader was not injected.
+   * Default: false.
+   */
+  requirePreloader?: boolean;
 }
 
 /** Resolved configuration used internally (defaults applied). */
@@ -189,6 +194,7 @@ export interface ResolvedConfig {
     enabled: boolean;
     similarityThreshold?: number;
   };
+  requirePreloader: boolean;
 }
 
 /** A module as it appears in the NodularApp result after bootstrap. */
@@ -233,6 +239,11 @@ export interface NodulusApp {
   modules: RegisteredModule[];
   routes: MountedRoute[];
   registry: NodulusRegistry;
+  runtime: {
+    preloaderActive: boolean;
+    preloaderVersion: string | null;
+    aliasesAtBoot: Record<string, string>;
+  };
 }
 
 /** Shape of nodulus.config.ts. Options passed directly to createApp() take priority. */

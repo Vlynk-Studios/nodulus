@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import path from 'node:path';
+import fs from 'node:fs';
 import pc from 'picocolors';
 import { loadConfig } from '../../core/config.js';
 import { buildModuleGraph } from '../lib/graph-builder.js';
@@ -23,6 +24,30 @@ export function checkCommand(): Command {
     .action(async (options) => {
         const cwd = process.cwd();
         const config = await loadConfig();
+
+        const logger = createLogger(defaultLogHandler, 'info');
+
+        // Pre-loader verification
+        try {
+            const preloadPath = path.join(cwd, '.nodulus', 'preload.js');
+            if (!fs.existsSync(preloadPath)) {
+                logger.warn('Pre-loader not detected. Run "npx nodulus sync-preload" to optimize alias resolution.');
+            } else {
+                const content = fs.readFileSync(preloadPath, 'utf8');
+                const versionMatch = content.match(/_version:\s*'([^']+)'/);
+                if (versionMatch) {
+                    const preloadVersion = versionMatch[1];
+                    const pkgPath = new URL('../../../package.json', import.meta.url);
+                    const currentVersion = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
+                    
+                    if (preloadVersion !== currentVersion) {
+                        logger.warn(`Pre-loader version mismatch (found v${preloadVersion}, core is v${currentVersion}). Run "npx nodulus sync-preload" to update.`);
+                    }
+                }
+            }
+        } catch (err: any) {
+            logger.warn(`Failed to verify pre-loader status: ${err.message}`);
+        }
         
         const graph = await buildModuleGraph(config, cwd);
         
