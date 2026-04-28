@@ -4,11 +4,10 @@ import fs from 'node:fs';
 import pc from 'picocolors';
 import { loadConfig } from '../../core/config.js';
 import { generatePreloadFile } from '../lib/preload-generator.js';
-import { createRequire } from 'node:module';
 import { createLogger, defaultLogHandler } from '../../core/logger.js';
 
-const require = createRequire(import.meta.url);
-const pkg = require('../../../../package.json');
+const pkgPath = new URL('../../../package.json', import.meta.url);
+const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 
 export function syncPreloadCommand(): Command {
   const sync = new Command('sync-preload');
