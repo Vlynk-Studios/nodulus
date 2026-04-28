@@ -1,7 +1,7 @@
 export interface PreloadConfig {
   modulesDir: string;
   aliases: Record<string, string>;
-  preloaded: boolean;
+  preloaded: true;
   _version: string;
 }
 
