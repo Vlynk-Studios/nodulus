@@ -70,7 +70,7 @@ export async function activateAliasResolver(moduleAliases: Record<string, string
 
   if (globalThis.__NODULUS_PRELOAD_CONFIG__?.preloaded === true) {
     mergeAliasesIntoPreloadConfig(combinedAliases);
-    log.info(`ESM alias hook skipped (handled by pre-loader), merged ${Object.keys(combinedAliases).length} alias(es) into runtime config`, {
+    log.info(`[alias] ESM alias hook skipped (handled by pre-loader), merged ${Object.keys(combinedAliases).length} alias(es) into runtime config`, {
       aliasCount: Object.keys(combinedAliases).length,
     });
     return;
@@ -129,7 +129,7 @@ export async function resolve(specifier, context, nextResolve) {
 
     if (typeof register === 'function') {
       register(dataUrl, { parentURL: parentUrl });
-      log.info(`ESM alias hook activated (${Object.keys(combinedAliases).length} alias(es))`, {
+      log.info(`[alias] ESM alias hook activated (${Object.keys(combinedAliases).length} alias(es))`, {
         aliasCount: Object.keys(combinedAliases).length,
       });
     } else {

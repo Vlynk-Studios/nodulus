@@ -15,21 +15,50 @@ const LEVEL_STYLE: Record<LogLevel, (msg: string) => string> = {
   error: (msg) => pc.red(msg),
 };
 
-const LEVEL_LABELS: Record<LogLevel, string> = {
-  debug: 'debug',
-  info:  'info ', // trailing space for alignment
-  warn:  'warn ',
-  error: 'error',
-};
+
 
 /**
  * Default log handler. Writes to process.stdout (info/debug) or process.stderr (warn/error).
  * All lines are prefixed with [Nodulus].
  */
-export const defaultLogHandler: LogHandler = (level, message) => {
+export const defaultLogHandler: LogHandler = (level, rawMessage, meta) => {
   const prefix = pc.gray('[Nodulus]');
-  const label = LEVEL_STYLE[level](LEVEL_LABELS[level]);
-  const line = `${prefix} ${label} ${message}`;
+  
+  // Pad level to 5 chars: 'info ', 'warn ', 'debug', 'error'
+  const paddedLevel = level.padEnd(5);
+  // Keep original level colors for the label to maintain visual hierarchy
+  const coloredLabel = LEVEL_STYLE[level](paddedLevel);
+
+  let moduleName = '';
+  let message = rawMessage;
+
+  // Read context from meta._module if present
+  if (meta && typeof meta._module === 'string') {
+    moduleName = `[${meta._module}]`;
+  } else {
+    // Fallback: Parse [module] context from the message for internal logs
+    const match = rawMessage.match(/^\[([^\]]+)\]\s*(.*)/);
+    if (match) {
+      moduleName = `[${match[1]}]`;
+      message = match[2];
+    }
+  }
+
+  // Pad module to 10 chars. If empty, it becomes 10 spaces.
+  const paddedModule = moduleName.padEnd(10);
+  const coloredModule = pc.dim(paddedModule);
+
+  // Color the message based on the level
+  let coloredMessage = message;
+  switch (level) {
+    case 'debug': coloredMessage = pc.gray(message); break;
+    case 'info':  coloredMessage = message; /* default */ break;
+    case 'warn':  coloredMessage = pc.yellow(message); break;
+    case 'error': coloredMessage = pc.red(message); break;
+  }
+
+  // Format line: [Nodulus] LEVEL  [módulo]    mensaje
+  const line = `${prefix} ${coloredLabel}  ${coloredModule} ${coloredMessage}`;
   
   if (level === 'warn' || level === 'error') {
     process.stderr.write(line + '\n');
@@ -65,13 +94,15 @@ export interface Logger {
  * 
  * @param handler  - Where log events are sent.
  * @param minLevel - Events below this level are discarded.
+ * @param module   - Optional module context for logs.
  */
-export function createLogger(handler: LogHandler, minLevel: LogLevel): Logger {
+export function createLogger(handler: LogHandler, minLevel: LogLevel, module?: string): Logger {
   const minOrder = LEVEL_ORDER[minLevel];
 
   const emit = (level: LogLevel, message: string, meta?: Record<string, unknown>) => {
     if (LEVEL_ORDER[level] >= minOrder) {
-      handler(level, message, meta);
+      const enrichedMeta = module ? { ...meta, _module: module } : meta;
+      handler(level, message, enrichedMeta);
     }
   };
 
