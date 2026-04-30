@@ -30,7 +30,8 @@ export type {
   NodulusConfig,
   GetAliasesOptions,
   LogLevel,
-  LogHandler
+  LogHandler,
+  WatcherOptions
 } from './types/index.js';
 
 export type { PreloadConfig } from './preload/index.js';

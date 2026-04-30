@@ -289,3 +289,16 @@ export interface GetAliasesOptions {
   /** If true, returns absolute paths. Default: false. */
   absolute?: boolean;
 }
+
+export interface WatcherOptions {
+  /** Paths o globs a observar. Acepta string o array de strings. */
+  paths: string | string[];
+  /** Globs o funciones a ignorar. Por defecto ignora node_modules y .git */
+  ignored?: string | string[] | ((path: string) => boolean);
+  /** Debounce en ms antes de reiniciar. Default: 300 */
+  debounceMs?: number;
+  /** Callback a ejecutar cuando se detecta un cambio. Recibe el path del archivo modificado. */
+  onRestart: (changedPath: string) => void | Promise<void>;
+  /** Instancia del logger de Nodulus. */
+  logger: import('../core/logger.js').Logger; // referencia al Logger interno existente
+}
