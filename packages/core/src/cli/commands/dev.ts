@@ -144,7 +144,7 @@ export function devCommand(): Command {
                     // is actively fixing the issue.
                     restartCount = 0;
 
-                    logger.info(`[watcher] Change detected: ${changedPath}. Restarting...`);
+                    logger.info(`[watcher] Change detected in ${path.basename(changedPath)}. Restarting...`);
 
                     restarting = true;
                     // child.kill() without args: Node sends SIGTERM on Unix,
