@@ -15,7 +15,7 @@ export async function resolve(
   nextResolve: NextResolve
 ) {
   if (!config) {
-    return nextResolve(specifier, context);
+    return attemptResolve(specifier, context, nextResolve);
   }
 
   const aliases = config.aliases;
@@ -29,18 +29,34 @@ export async function resolve(
         const baseTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
         const subPath = specifier.slice(baseAlias.length);
         const resolvedPath = path.resolve(baseTarget, subPath.startsWith('/') ? subPath.slice(1) : subPath);
-        return nextResolve(pathToFileURL(resolvedPath).href, context);
+        return attemptResolve(pathToFileURL(resolvedPath).href, context, nextResolve);
       }
     } else if (specifier === alias) {
       const exactTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
-      return nextResolve(pathToFileURL(exactTarget).href, context);
+      return attemptResolve(pathToFileURL(exactTarget).href, context, nextResolve);
     } else if (specifier.startsWith(alias + '/')) {
       const baseTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
       const subPath = specifier.slice(alias.length + 1);
       const resolvedPath = path.resolve(baseTarget, subPath);
-      return nextResolve(pathToFileURL(resolvedPath).href, context);
+      return attemptResolve(pathToFileURL(resolvedPath).href, context, nextResolve);
     }
   }
 
-  return nextResolve(specifier, context);
+  return attemptResolve(specifier, context, nextResolve);
+}
+
+async function attemptResolve(specifier: string, context: ResolveHookContext, nextResolve: NextResolve) {
+  try {
+    return await nextResolve(specifier, context);
+  } catch (err: any) {
+    if (err?.code === 'ERR_MODULE_NOT_FOUND' && specifier.endsWith('.js')) {
+      try {
+        const tsSpecifier = specifier.slice(0, -3) + '.ts';
+        return await nextResolve(tsSpecifier, context);
+      } catch {
+        // Fallback failed, throw original error
+      }
+    }
+    throw err;
+  }
 }

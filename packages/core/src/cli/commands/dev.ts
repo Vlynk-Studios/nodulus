@@ -36,11 +36,22 @@ export function devCommand(): Command {
         const isWindows = process.platform === 'win32';
         const useShell = isWindows && options.runtime !== 'node';
 
-        const proc = spawn(options.runtime, args, {
-            stdio: 'inherit',
-            cwd,
-            shell: useShell
-        });
+        let proc;
+        if (useShell) {
+            // Avoid DEP0190 and EINVAL by passing a single command string when shell: true
+            const commandStr = `${options.runtime} ${args.map(a => `"${a}"`).join(' ')}`;
+            proc = spawn(commandStr, {
+                stdio: 'inherit',
+                cwd,
+                shell: true
+            });
+        } else {
+            proc = spawn(options.runtime, args, {
+                stdio: 'inherit',
+                cwd,
+                shell: false
+            });
+        }
 
         proc.on('close', (code) => {
             process.exit(code ?? 0);
