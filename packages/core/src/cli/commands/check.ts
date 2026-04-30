@@ -25,7 +25,7 @@ export function checkCommand(): Command {
         const cwd = process.cwd();
         const config = await loadConfig();
 
-        const logger = createLogger(defaultLogHandler, 'info');
+        const logger = createLogger(defaultLogHandler, 'info', 'check');
 
         // Pre-loader verification
         try {
@@ -83,11 +83,11 @@ export function checkCommand(): Command {
 
             const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0;
             if (hasChanges && options.format !== 'json') {
-              const logger = createLogger(defaultLogHandler, 'info');
+              const logger = createLogger(defaultLogHandler, 'info', 'check');
               reportReconciliation(result, logger);
             }
           } catch (err: any) {
-            const logger = createLogger(defaultLogHandler, 'warn');
+            const logger = createLogger(defaultLogHandler, 'warn', 'check');
             logger.warn(`NITS reconciliation failed: ${err.message}. Analysis will continue...`);
           }
         }

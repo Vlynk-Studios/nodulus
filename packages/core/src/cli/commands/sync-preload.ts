@@ -24,7 +24,7 @@ export function syncPreloadCommand(): Command {
   sync
     .description('Generates .nodulus/preload.js embedding runtime aliases configuration')
     .action(async () => {
-        const logger = createLogger(defaultLogHandler, 'info');
+        const logger = createLogger(defaultLogHandler, 'info', 'alias');
         const cwd = process.cwd();
         
         try {

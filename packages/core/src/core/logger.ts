@@ -101,7 +101,7 @@ export function createLogger(handler: LogHandler, minLevel: LogLevel, module?: s
 
   const emit = (level: LogLevel, message: string, meta?: Record<string, unknown>) => {
     if (LEVEL_ORDER[level] >= minOrder) {
-      const enrichedMeta = module ? { ...meta, _module: module } : meta;
+      const enrichedMeta = module ? { _module: module, ...meta } : meta;
       handler(level, message, enrichedMeta);
     }
   };

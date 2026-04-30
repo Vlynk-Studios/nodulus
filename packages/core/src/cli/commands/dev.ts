@@ -18,7 +18,7 @@ export function devCommand(): Command {
     .option('--watch', 'Run in watch mode using chokidar (does not delegate to node --watch)', false)
     .option('--runtime <runtime>', 'Runtime to use (node or tsx)', 'node')
     .action(async (entrypoint, options) => {
-        const logger = createLogger(defaultLogHandler, 'info');
+        const logger = createLogger(defaultLogHandler, 'info', 'dev');
         const cwd = process.cwd();
         const preloadPath = path.join(cwd, '.nodulus', 'preload.js');
         const hasPreload = fs.existsSync(preloadPath);
@@ -86,8 +86,9 @@ export function devCommand(): Command {
 
                     if (restartCount >= MAX_RESTART_ATTEMPTS) {
                         logger.error(
-                            `[watcher] Server crashed ${MAX_RESTART_ATTEMPTS} times in a row. ` +
-                            `Fix the error and save a file to restart.`
+                            `Server crashed ${MAX_RESTART_ATTEMPTS} times in a row. ` +
+                            `Fix the error and save a file to restart.`,
+                            { _module: 'watcher' }
                         );
                         // Do NOT exit — leave the watcher alive so the user
                         // can fix the file and trigger a fresh restart.
@@ -95,9 +96,10 @@ export function devCommand(): Command {
                     }
 
                     logger.warn(
-                        `[watcher] Server exited unexpectedly (code ${code}). ` +
+                        `Server exited unexpectedly (code ${code}). ` +
                         `Restarting in ${CRASH_RESTART_DELAY_MS}ms… ` +
-                        `(attempt ${restartCount}/${MAX_RESTART_ATTEMPTS})`
+                        `(attempt ${restartCount}/${MAX_RESTART_ATTEMPTS})`,
+                        { _module: 'watcher' }
                     );
 
                     setTimeout(() => {
@@ -144,7 +146,7 @@ export function devCommand(): Command {
                     // is actively fixing the issue.
                     restartCount = 0;
 
-                    logger.info(`[watcher] Change detected in ${path.basename(changedPath)}. Restarting...`);
+                    logger.info(`Change detected in ${path.basename(changedPath)}. Restarting...`, { _module: 'watcher' });
 
                     restarting = true;
                     // child.kill() without args: Node sends SIGTERM on Unix,

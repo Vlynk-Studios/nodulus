@@ -10,12 +10,12 @@ export function reportReconciliation(result: ReconciliationResult, log: Logger):
     result.stale.length > 0;
 
   if (!hasAlerts) {
-    log.debug('NITS: no changes detected');
+    log.debug('no changes detected', { _module: 'nits' });
     return;
   }
 
   if (result.newModules.length > 0) {
-    log.debug(`[NITS] ${result.newModules.length} new modules discovered.`);
+    log.debug(`${result.newModules.length} new modules discovered.`, { _module: 'nits' });
   }
 
   if (result.moved.length > 0) {
@@ -33,7 +33,7 @@ export function reportReconciliation(result: ReconciliationResult, log: Logger):
         msg += `\n           Update imports to: ${pc.green(newAlias)}`;
       }
       
-      log.warn(msg);
+      log.warn(msg, { _module: 'nits' });
     }
   }
 
@@ -44,7 +44,7 @@ export function reportReconciliation(result: ReconciliationResult, log: Logger):
       msg += `           If it was intentionally deleted, you can ignore this.\n`;
       msg += `           If it was moved, make sure the new directory has Module().`;
       
-      log.warn(msg);
+      log.warn(msg, { _module: 'nits' });
     }
   }
 
@@ -55,32 +55,32 @@ export function reportReconciliation(result: ReconciliationResult, log: Logger):
       msg += `           Please verify manually if it is the same moved module.\n`;
       msg += `           ${pc.gray('New path:')} ${pc.cyan(m.newPath)}`;
       
-      log.warn(msg);
+      log.warn(msg, { _module: 'nits' });
     }
   }
 
-  log.debug(pc.cyan('[NITS] Identity Reconciliation Summary'));
-  log.debug(pc.gray('----------------------------------------'));
+  log.debug(pc.cyan('Identity Reconciliation Summary'), { _module: 'nits' });
+  log.debug(pc.gray('----------------------------------------'), { _module: 'nits' });
   
   if (result.confirmed.length > 0) {
-    log.debug(`${pc.green('✔')} Confirmed:      ${pc.bold(result.confirmed.length)}`);
+    log.debug(`${pc.green('✔')} Confirmed:      ${pc.bold(result.confirmed.length)}`, { _module: 'nits' });
   }
   
   if (result.newModules.length > 0) {
-    log.debug(`${pc.blue('✳')} New modules:    ${pc.bold(result.newModules.length)}`);
+    log.debug(`${pc.blue('✳')} New modules:    ${pc.bold(result.newModules.length)}`, { _module: 'nits' });
   }
   
   if (result.moved.length > 0) {
-    log.debug(`${pc.magenta('⇄')} Moved:          ${pc.bold(result.moved.length)}`);
+    log.debug(`${pc.magenta('⇄')} Moved:          ${pc.bold(result.moved.length)}`, { _module: 'nits' });
   }
   
   if (result.candidates.length > 0) {
-    log.debug(`${pc.yellow('❓')} Candidates:     ${pc.bold(result.candidates.length)}`);
+    log.debug(`${pc.yellow('❓')} Candidates:     ${pc.bold(result.candidates.length)}`, { _module: 'nits' });
   }
   
   if (result.stale.length > 0) {
-    log.debug(`${pc.gray('✖')} Stale (disk):  ${pc.bold(result.stale.length)}`);
+    log.debug(`${pc.gray('✖')} Stale (disk):  ${pc.bold(result.stale.length)}`, { _module: 'nits' });
   }
   
-  log.debug(pc.gray('----------------------------------------\n'));
+  log.debug(pc.gray('----------------------------------------\n'), { _module: 'nits' });
 }

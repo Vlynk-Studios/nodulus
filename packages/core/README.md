@@ -690,6 +690,11 @@ await createApp(app, {
 })
 ```
 
+### User-space logs
+
+Nodulus **does not** intercept or wrap standard `console.log` calls from your application code.
+Messages like `Mounted N route(s)` or `Server running on http://localhost:3000` generated in your `app.ts` or `server.ts` are entirely your responsibility and will output normally without the `[Nodulus]` prefix.
+
 ---
 
 ## Error handling

@@ -73,11 +73,11 @@ export async function createApp(
 
   // Step 1 — Load configuration
   const config = await loadConfig(options);
-  const log = createLogger(config.logger, config.logLevel);
+  const log = createLogger(config.logger, config.logLevel, 'boot');
 
   // Step 1.1 — Pre-loader Warnings
   if (!preloaderActive && config.resolveAliases !== false) {
-    log.warn('[boot] Pre-loader not detected. Alias resolution might fail for top-level imports. Running in legacy mode (v1.4.0).', { suggestion: 'Run "npx nodulus sync-preload" and use "node --import ./.nodulus/preload.js"' });
+    log.warn('Pre-loader not detected. Alias resolution might fail for top-level imports. Running in legacy mode (v1.4.0).', { suggestion: 'Run "npx nodulus sync-preload" and use "node --import ./.nodulus/preload.js"' });
   }
 
   if (preloaderActive) {
@@ -93,15 +93,15 @@ export async function createApp(
       };
       const currentVersion = getPkg().version;
       if (preloadConfig?._version && preloadConfig._version !== currentVersion) {
-          log.warn(`[boot] Pre-loader version mismatch. Pre-loader: ${preloadConfig._version}, Core: ${currentVersion}.`, { suggestion: 'Run "npx nodulus sync-preload" to update it.' });
+          log.warn(`Pre-loader version mismatch. Pre-loader: ${preloadConfig._version}, Core: ${currentVersion}.`, { suggestion: 'Run "npx nodulus sync-preload" to update it.' });
       }
   }
 
   if (config.domains || config.shared) {
-    log.warn('[config] Infrastructure (domains/shared) is not yet supported in v1.2.x. These keys in configuration will be ignored until v2.0.0.');
+    log.warn('Infrastructure (domains/shared) is not yet supported in v1.2.x. These keys in configuration will be ignored until v2.0.0.', { _module: 'config' });
   }
 
-  log.info('[boot] Bootstrap started', {
+  log.info('Bootstrap started', {
     modules: pc.cyan(config.modules),
     prefix: pc.cyan(config.prefix || '(none)'),
     strict: pc.yellow(String(config.strict)),
@@ -121,7 +121,7 @@ export async function createApp(
   const resolvedModules: { name: string, dirPath: string, indexPath: string }[] = [];
 
   for (const dirPath of moduleDirs) {
-    log.debug(`[module] Discovered module directory: ${dirPath}`, { dirPath });
+    log.debug(`Discovered module directory: ${dirPath}`, { dirPath, _module: 'module' });
     const tsPath = path.join(dirPath, 'index.ts');
     const jsPath = path.join(dirPath, 'index.js');
     
@@ -177,10 +177,10 @@ export async function createApp(
       const nitsIdMap = buildNitsIdMap(nitsResult, cwd);
       registry.seedNitsIds(nitsIdMap);
       
-      log.debug('[nits] NITS identity reconciliation complete.');
+      log.debug('NITS identity reconciliation complete.', { _module: 'nits' });
     } catch (err: any) {
-      log.warn(`[nits] NITS reconciliation failed: ${err.message}. Bootstrap will continue with temporary identities.`);
-      log.debug('[nits] NITS Error detail:', err);
+      log.warn(`NITS reconciliation failed: ${err.message}. Bootstrap will continue with temporary identities.`, { _module: 'nits' });
+      log.debug('NITS Error detail:', { error: err, _module: 'nits' });
     }
   }
 
@@ -199,7 +199,7 @@ export async function createApp(
     const normalizedConfigAliases: Record<string, string> = {};
     for (const [alias, target] of Object.entries(config.aliases)) {
       if (pureModuleAliases[alias]) {
-        log.warn(`[alias] Alias collision: User alias "${alias}" overrides an auto-generated module alias. Configuration will take precedence.`, { alias, target });
+        log.warn(`Alias collision: User alias "${alias}" overrides an auto-generated module alias. Configuration will take precedence.`, { alias, target, _module: 'alias' });
       }
 
       const isWildcard = target.endsWith('/*');
@@ -233,13 +233,13 @@ export async function createApp(
         if (config.strict) {
           throw new NodulusError('ALIAS_INVALID', msg);
         } else {
-          log.warn(`[alias] ${msg}`);
+          log.warn(msg, { _module: 'alias' });
         }
       }
 
       registry.registerAlias(alias, finalTargetPath);
       normalizedConfigAliases[alias] = finalTargetPath;
-      log.debug(`[alias] Alias registered: ${alias} → ${finalTargetPath}`, { alias, finalTargetPath, source: 'config' });
+      log.debug(`Alias registered: ${alias} → ${finalTargetPath}`, { alias, finalTargetPath, source: 'config', _module: 'alias' });
     }
 
     await activateAliasResolver(pureModuleAliases, normalizedConfigAliases, log);
@@ -262,8 +262,8 @@ export async function createApp(
       );
     }
 
-    log.info(`[module] Module loaded: ${pc.green(registeredMod.name)}`, {
-      id: registeredMod.id,
+    log.info(`Module loaded: ${pc.green(registeredMod.name)}`, {
+      _module: 'module',
       name: registeredMod.name,
       imports: registeredMod.imports,
       exports: registeredMod.exports,
@@ -287,8 +287,8 @@ export async function createApp(
       for (const actual of actualExports) {
         if (!declaredExports.includes(actual)) {
           log.warn(
-            `[module] Module "${registeredMod.name}" exports "${actual}" but it is not declared in Module() options "exports" array.`,
-            { name: registeredMod.name, exportName: actual }
+            `Module "${registeredMod.name}" exports "${actual}" but it is not declared in Module() options "exports" array.`,
+            { name: registeredMod.name, exportName: actual, _module: 'module' }
           );
         }
       }
@@ -346,8 +346,8 @@ export async function createApp(
           if (config.strict) {
             throw new NodulusError('UNDECLARED_IMPORT', message, details);
           } else {
-            log.warn(`[module] ${message}`, {
-              module: registeredMod.name,
+            log.warn(message, {
+              _module: 'module',
               target: targetModule,
               file: path.normalize(file),
               line: imp.line,
@@ -363,7 +363,7 @@ export async function createApp(
         if (config.strict) {
           throw new NodulusError('UNUSED_IMPORT', message, `Remove "${declared}" from imports[] in "${registeredMod.name}".`);
         } else {
-          log.warn(`[module] ${message}`, { module: registeredMod.name, unusedTarget: declared });
+          log.warn(message, { module: registeredMod.name, unusedTarget: declared, _module: 'module' });
         }
       }
     }
@@ -395,7 +395,7 @@ export async function createApp(
     files.sort();
 
     for (let file of files) {
-      log.debug(`[router] Scanning controller file: ${file}`, { filePath: file, module: mod.name });
+      log.debug(`Scanning controller file: ${file}`, { filePath: file, module: mod.name, _module: 'router' });
       file = path.normalize(file);
       let imported: any;
       try {
@@ -437,8 +437,8 @@ export async function createApp(
 
     for (const ctrl of rawMod.controllers) {
       if (!ctrl.enabled) {
-        log.info(`[router] Controller "${ctrl.name}" is disabled — skipping mount`, {
-          name: ctrl.name,
+        log.info(`Controller "${ctrl.name}" is disabled — skipping mount`, {
+          _module: 'router',
           module: mod.name,
           prefix: ctrl.prefix,
         });
@@ -494,8 +494,8 @@ export async function createApp(
 
         for (const route of extractedRoutes) {
           const colorFn = methodColors[route.method] || pc.white;
-          log.info(`[router] ${colorFn(route.method.padEnd(6))} ${pc.white(route.path)}  ${pc.gray(`(${ctrl.name})`)}`, {
-            method: route.method,
+          log.info(`  ${colorFn(route.method.padEnd(6))} ${pc.white(route.path)}  ${pc.gray(`(${ctrl.name})`)}`, {
+            _module: 'router',
             path: route.path,
             module: mod.name,
             controller: ctrl.name,
@@ -509,7 +509,7 @@ export async function createApp(
 
     const safeRegisteredModules = allModules.map(m => registry.getModule(m.name)!);
     const durationMs = Math.round(performance.now() - startTime);
-    log.info(`[boot] ${pc.green('Bootstrap complete')} — ${pc.cyan(allModules.length)} module(s), ${pc.cyan(mountedRoutes.length)} route(s) in ${pc.yellow(`${durationMs}ms`)}`, {
+    log.info(`${pc.green('Bootstrap complete')} — ${pc.cyan(allModules.length)} module(s), ${pc.cyan(mountedRoutes.length)} route(s) in ${pc.yellow(`${durationMs}ms`)}`, {
       moduleCount: allModules.length,
       routeCount: mountedRoutes.length,
       durationMs,

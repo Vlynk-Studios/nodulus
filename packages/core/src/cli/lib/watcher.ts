@@ -48,7 +48,7 @@ const defaultIgnored = [
 export function createWatcher(options: WatcherOptions): {
   close: () => Promise<void>;
 } {
-  const { paths, debounceMs = 300, onRestart, logger } = options;
+  const { paths, debounceMs = 300, logger } = options;
 
   // ─── Merge ignored patterns ──────────────────────────────────────────────
   // User-supplied `ignored` is always appended to the defaults, never
@@ -105,15 +105,15 @@ export function createWatcher(options: WatcherOptions): {
 
   watcher
     .on("add", (filePath) => {
-      logger.debug(`[watcher] file added: ${filePath}`);
+      logger.debug(`file added: ${filePath}`, { _module: 'watcher' });
       scheduleRestart(filePath);
     })
     .on("change", (filePath) => {
-      logger.debug(`[watcher] file changed: ${filePath}`);
+      logger.debug(`file changed: ${filePath}`, { _module: 'watcher' });
       scheduleRestart(filePath);
     })
     .on("unlink", (filePath) => {
-      logger.debug(`[watcher] file removed: ${filePath}`);
+      logger.debug(`file removed: ${filePath}`, { _module: 'watcher' });
       scheduleRestart(filePath);
     });
 
@@ -122,7 +122,7 @@ export function createWatcher(options: WatcherOptions): {
   // At this point any subsequent FS events will be reported.
 
   watcher.on("ready", () => {
-    logger.info("[watcher] Watching for file changes...");
+    logger.info("Watching for file changes...", { _module: 'watcher' });
   });
 
   // ─── Error handling ───────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ export function createWatcher(options: WatcherOptions): {
 
   watcher.on('error', (err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error(`[watcher] Chokidar error: ${message}`);
+    logger.error(`Chokidar error: ${message}`, { _module: 'watcher' });
   });
 
   // ─── Teardown ─────────────────────────────────────────────────────────────
