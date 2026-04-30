@@ -658,7 +658,7 @@ Nodulus emits structured, color-coded log events throughout the bootstrap pipeli
 |---|---|---|
 | Development | `info` | Modules loading, routes mounting, startup duration |
 | Any | `warn` / `error` | Written to `stderr`; everything else to `stdout` |
-| Debug | `debug` | Set `logLevel: 'debug'` in options or `NODE_DEBUG=nodulus` |
+| Debug | `debug` | Set `logLevel: 'debug'` in options, or use `NODULUS_LOG_LEVEL=debug` or `NODE_DEBUG=nodulus` |
 
 ### Semantic levels
 

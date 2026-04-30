@@ -69,10 +69,15 @@ export const defaultLogHandler: LogHandler = (level, rawMessage, meta) => {
 
 /**
  * Resolves the effective minimum log level.
- * Priority: explicit logLevel option > NODE_DEBUG env var > default ('info').
+ * Priority: explicit logLevel option > NODULUS_LOG_LEVEL > NODE_DEBUG env var > default ('info').
  */
 export function resolveLogLevel(explicit?: LogLevel): LogLevel {
   if (explicit) return explicit;
+
+  const envLevel = process.env.NODULUS_LOG_LEVEL as LogLevel | undefined;
+  if (envLevel && envLevel in LEVEL_ORDER) {
+    return envLevel;
+  }
 
   const nodeDebug = process.env.NODE_DEBUG ?? '';
   if (nodeDebug.split(',').map(s => s.trim()).includes('nodulus')) {
@@ -90,14 +95,58 @@ export interface Logger {
 }
 
 /**
+ * Creates a log handler specifically for user applications.
+ * Output format: [name]  LEVEL  message (without Nodulus prefix).
+ */
+export function createUserLogHandler(name: string): LogHandler {
+  return (level, rawMessage) => {
+    const prefix = pc.gray(`[${name}]`);
+    const paddedLevel = level.padEnd(5);
+    const coloredLabel = LEVEL_STYLE[level](paddedLevel);
+
+    let coloredMessage = rawMessage;
+    switch (level) {
+      case 'debug': coloredMessage = pc.gray(rawMessage); break;
+      case 'info':  coloredMessage = rawMessage; break;
+      case 'warn':  coloredMessage = pc.yellow(rawMessage); break;
+      case 'error': coloredMessage = pc.red(rawMessage); break;
+    }
+
+    const line = `${prefix}  ${coloredLabel}  ${coloredMessage}`;
+    
+    if (level === 'warn' || level === 'error') {
+      process.stderr.write(line + '\n');
+    } else {
+      process.stdout.write(line + '\n');
+    }
+  };
+}
+
+/**
+ * Creates a configured Logger instance for user applications.
+ * 
+ * @param name - The name of the application or module (used as prefix).
+ */
+export function createLogger(name: string): Logger;
+
+/**
  * Creates a bound logger that filters by minLevel and delegates to handler.
  * 
  * @param handler  - Where log events are sent.
  * @param minLevel - Events below this level are discarded.
  * @param module   - Optional module context for logs.
  */
-export function createLogger(handler: LogHandler, minLevel: LogLevel, module?: string): Logger {
-  const minOrder = LEVEL_ORDER[minLevel];
+export function createLogger(handler: LogHandler, minLevel: LogLevel, module?: string): Logger;
+
+export function createLogger(arg1: string | LogHandler, minLevel?: LogLevel, module?: string): Logger {
+  if (typeof arg1 === 'string') {
+    const handler = createUserLogHandler(arg1);
+    const resolvedLevel = resolveLogLevel();
+    return createLogger(handler, resolvedLevel);
+  }
+
+  const handler = arg1;
+  const minOrder = LEVEL_ORDER[minLevel!];
 
   const emit = (level: LogLevel, message: string, meta?: Record<string, unknown>) => {
     if (LEVEL_ORDER[level] >= minOrder) {
