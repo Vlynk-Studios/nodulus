@@ -1,5 +1,5 @@
-import chokidar from 'chokidar';
-import type { WatcherOptions } from '../../types/index.js';
+import chokidar from "chokidar";
+import type { WatcherOptions } from "../../types/index.js";
 
 // ─── Default ignored patterns ─────────────────────────────────────────────────
 // These are always combined with whatever the user passes in options.ignored.
@@ -7,13 +7,13 @@ import type { WatcherOptions } from '../../types/index.js';
 // updates that Nodulus itself generates during bootstrap.
 
 const defaultIgnored = [
-  '**/node_modules/**',
-  '**/.git/**',
-  '**/dist/**',
-  '**/*.d.ts',
-  '**/*.map',
-  '**/.nodulus/**',
-  '**/coverage/**',
+  "**/node_modules/**",
+  "**/.git/**",
+  "**/dist/**",
+  "**/*.d.ts",
+  "**/*.map",
+  "**/.nodulus/**",
+  "**/coverage/**",
 ];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -28,9 +28,26 @@ const defaultIgnored = [
  * - Express is unaware of the watcher's existence.
  *
  * @param options - Configuration for the watcher.
- * @returns A function that stops the watcher when called.
+ * @returns An object containing a `close` function to cleanly terminate the watcher.
+ *
+ * @example
+ * ```ts
+ * const watcher = createWatcher({
+ *   paths: ['src/'],
+ *   logger,
+ *   onRestart: async (changedPath) => {
+ *     console.log(`Changed: ${changedPath}`);
+ *     // Restart your application logic here
+ *   }
+ * });
+ *
+ * // Later, to cleanly shutdown:
+ * await watcher.close();
+ * ```
  */
-export function createWatcher(options: WatcherOptions): () => Promise<void> {
+export function createWatcher(options: WatcherOptions): {
+  close: () => Promise<void>;
+} {
   const { paths, debounceMs = 300, onRestart, logger } = options;
 
   // ─── Merge ignored patterns ──────────────────────────────────────────────
@@ -82,26 +99,45 @@ export function createWatcher(options: WatcherOptions): () => Promise<void> {
   });
 
   // ─── Event listeners ──────────────────────────────────────────────────────
+  // Subscribing to specific events instead of 'all' makes the intent explicit
+  // and avoids reacting to Chokidar-internal events like 'addDir'/'unlinkDir'
+  // that should not trigger a server restart.
 
-  watcher.on('all', (event, filePath) => {
-    logger.debug(`[watcher] ${event}: ${filePath}`);
-    scheduleRestart(filePath);
+  watcher
+    .on("add", (filePath) => {
+      logger.debug(`[watcher] file added: ${filePath}`);
+      scheduleRestart(filePath);
+    })
+    .on("change", (filePath) => {
+      logger.debug(`[watcher] file changed: ${filePath}`);
+      scheduleRestart(filePath);
+    })
+    .on("unlink", (filePath) => {
+      logger.debug(`[watcher] file removed: ${filePath}`);
+      scheduleRestart(filePath);
+    });
+
+  // ─── Ready ────────────────────────────────────────────────────────────────
+  // Fires once Chokidar has finished its initial scan and is actively watching.
+  // At this point any subsequent FS events will be reported.
+
+  watcher.on("ready", () => {
+    logger.info("[watcher] Watching for file changes...");
   });
 
-  watcher.on('error', (error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error(`[watcher] File system error: ${message}`);
+  // ─── Error handling ───────────────────────────────────────────────────────
+  // Log FS errors (e.g. EACCES, ENOSPC) without crashing the watcher process.
+
+  watcher.on('error', (err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`[watcher] Chokidar error: ${message}`);
   });
 
   // ─── Teardown ─────────────────────────────────────────────────────────────
-  // Returns a function the caller can await to cleanly close the watcher and
-  // cancel any pending debounce before the process exits.
+  // Returns an object with a `close()` method so dev.ts can cleanly shut down
+  // the watcher and cancel any pending debounce before the process exits.
 
-  return async function stop(): Promise<void> {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-      debounceTimer = null;
-    }
-    await watcher.close();
+  return {
+    close: () => watcher.close(),
   };
 }

@@ -504,12 +504,12 @@ The generated file embeds your current alias config and is **idempotent** — ru
 Starts your application in development mode. Automatically injects `--import ./.nodulus/preload.js` if the file exists, ensuring aliases are available before any module loads.
 
 ```bash
-npx nodulus dev src/server.ts
+npx nodulus dev <entrypoint> [--watch] [--runtime <node|tsx>]
 ```
 
 | Option | Description |
 |---|---|
-| `--watch` | Restarts on file changes (passes `--watch` to Node.js) |
+| `--watch` | Run in watch mode using Chokidar (restarts on file changes) |
 | `--runtime tsx` | Uses `tsx` instead of `node` for TypeScript without a build step |
 
 If `.nodulus/preload.js` does not exist, `nodulus dev` falls back to legacy mode (v1.4.0 behaviour) with a warning.

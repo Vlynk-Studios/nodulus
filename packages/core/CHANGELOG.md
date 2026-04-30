@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Runtime Pre-loader:** Solves ESM import timing — aliases are now available in top-level `import` statements of your server entry file, not just inside dynamically-loaded modules.
 
 ### Added
+- **`nodulus dev --watch`**: file watching basado en chokidar v5 con debounce configurable.
+- **`WatcherOptions`**: exportado en la API pública.
 - **Runtime Pre-loader Hook** (`src/preload/preload-hook.ts`): A stateless ESM loader hook registered via Node.js `module.register()`. Receives embedded alias config through the `initialize()` hook, resolves aliases during module loading, and prioritises more-specific aliases over general ones when paths overlap.
 - **`nodulus sync-preload` CLI command**: Generates `.nodulus/preload.js` — a static ESM entry point that embeds your current alias configuration and registers the hook at Node.js startup. Idempotent: running it twice with the same config produces no file changes.
 - **`nodulus dev` CLI command**: Drops-in replacement for `node`/`tsx` during development. Automatically injects `--import ./.nodulus/preload.js` when the file is present. Supports `--watch` and `--runtime tsx` flags.
