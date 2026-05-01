@@ -18,6 +18,7 @@ import { reconcile, buildUpdatedNitsRegistry, buildNitsIdMap } from '../nits/nit
 import { reportReconciliation } from '../nits/nits-reporter.js';
 import { computeModuleHash } from '../nits/nits-hash.js';
 import { normalizePath } from '../core/utils/paths.js';
+import { registerShutdown } from '../core/shutdown.js';
 import type { DiscoveredModule } from '../types/nits.js';
 
 export async function createApp(
@@ -523,6 +524,13 @@ export async function createApp(
         preloaderActive,
         preloaderVersion: preloadConfig?._version ?? null,
         aliasesAtBoot: preloadConfig?.aliases ?? {}
+      },
+      listen(server) {
+        return registerShutdown({
+          server,
+          onShutdown: options.onShutdown,
+          logger: log,
+        });
       }
     };
 

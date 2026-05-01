@@ -193,6 +193,27 @@ export interface CreateAppOptions {
    * @since v1.5.0
    */
   requirePreloader?: boolean;
+  /**
+   * Async callback invoked during the graceful shutdown sequence, after the
+   * HTTP server is closed and before the process exits.
+   *
+   * Use this to cleanly release external resources (DB connections, message
+   * queues, caches, open file handles, etc.).
+   *
+   * @example
+   * ```ts
+   * const nodulus = await createApp(app, {
+   *   modules: 'src/modules/*',
+   *   onShutdown: async () => {
+   *     await db.close();
+   *     await redisClient.quit();
+   *   }
+   * });
+   * nodulus.listen(3000);
+   * ```
+   * @since v1.5.0
+   */
+  onShutdown?: () => void | Promise<void>;
 }
 
 /** Resolved configuration used internally (defaults applied). */
@@ -277,6 +298,27 @@ export interface NodulusApp {
      */
     aliasesAtBoot: Record<string, string>;
   };
+  /**
+   * Registers the HTTP server instance with the Nodulus shutdown manager.
+   * Once called, SIGINT (Ctrl+C) and SIGTERM signals will trigger a graceful
+   * shutdown sequence:
+   *   1. Close the HTTP server (no new connections accepted).
+   *   2. Run the `onShutdown` hook from `createApp()` options (if provided).
+   *   3. Exit with code 0.
+   *
+   * Also returns a `shutdown()` function you can call programmatically.
+   *
+   * @param server - The `http.Server` returned by `app.listen(...)`.
+   * @returns A function that triggers the shutdown sequence manually.
+   *
+   * @example
+   * ```ts
+   * const server = app.listen(3000);
+   * nodulus.listen(server);
+   * ```
+   * @since v1.5.1
+   */
+  listen(server: import('node:http').Server): () => Promise<void>;
 }
 
 /** Shape of nodulus.config.ts. Options passed directly to createApp() take priority. */

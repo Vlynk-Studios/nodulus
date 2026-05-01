@@ -172,6 +172,7 @@ createApp(app: Application, options?: CreateAppOptions): Promise<NodulusApp>
 | `logLevel` | `LogLevel` | `'info'` | Minimum severity for log events |
 | `nits` | `NitsConfig` | `{ enabled: true }` | NITS identity tracking configuration |
 | `requirePreloader` | `boolean` | `false` | _(v1.5.0+)_ If `true`, `createApp()` throws `PRELOADER_REQUIRED` when the runtime pre-loader is not active |
+| `onShutdown` | `() => void \| Promise<void>` | `undefined` | _(v1.5.0+)_ Async cleanup hook invoked after the HTTP server closes and before the process exits. Use for DB connections, queues, file handles, etc. |
 
 **`NitsConfig`:**
 
@@ -192,6 +193,8 @@ interface NodulusApp {
     preloaderVersion: string | null
     aliasesAtBoot:    Record<string, string>
   }
+  // v1.5.0+ — registers the HTTP server with the graceful shutdown manager
+  listen(server: http.Server): () => Promise<void>
 }
 ```
 
@@ -707,6 +710,56 @@ log.info('Application started')
 
 Nodulus **does not** intercept or wrap standard `console.log` calls from your application code.
 Messages like `Mounted N route(s)` or `Server running on http://localhost:3000` generated in your `app.ts` or `server.ts` are entirely your responsibility and will output normally without the `[Nodulus]` prefix.
+
+---
+
+## Graceful Shutdown _(v1.5.0+)_
+
+By default, when you press `Ctrl+C` or a process manager sends `SIGTERM`, Node.js exits immediately — leaving the port open and blocking the next restart (the classic "zombie process" problem).
+
+Nodulus solves this with `nodulus.listen(server)`. Call it once after `app.listen()` and Nodulus handles the rest:
+
+```ts
+import express from 'express'
+import { createApp } from '@vlynk-studios/nodulus-core'
+
+const app = express()
+
+const nodulus = await createApp(app, {
+  modules: 'src/modules/*',
+  onShutdown: async () => {
+    // Called after the server closes, before process.exit(0)
+    await db.close()
+    await redisClient.quit()
+    console.log('Resources released.')
+  }
+})
+
+const server = app.listen(3000)
+nodulus.listen(server) // ← registers SIGINT + SIGTERM handlers
+```
+
+### What happens on shutdown
+
+1. **SIGINT** (Ctrl+C) or **SIGTERM** (kill / PM2 / Docker) fires.
+2. Nodulus calls `server.close()` — no new connections are accepted, port is freed.
+3. Your `onShutdown()` hook runs (DB close, queue drain, etc.).
+4. Process exits with code `0`.
+
+### Manual shutdown
+
+`nodulus.listen()` returns a `shutdown()` function you can call programmatically — useful for testing or custom signal logic:
+
+```ts
+const server = app.listen(3000)
+const shutdown = nodulus.listen(server)
+
+// Trigger shutdown from anywhere:
+await shutdown()
+```
+
+> [!TIP]
+> A double-invocation guard is built in — calling `shutdown()` twice (or receiving both SIGINT and SIGTERM simultaneously) is safe and runs the sequence only once.
 
 ---
 

@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`NODULUS_LOG_LEVEL` environment variable**: Global control for log verbosity across both framework and user-space logs.
 - **Aligned Output Format**: Fixed-width columns for `[Nodulus]`, `LEVEL`, and `[module]` ensuring perfectly readable console output even with varying module names.
 - **Contextual Metadata**: Injected `_module` context into all internal logs, allowing centralized formatting without hardcoded prefixes in strings.
+- **Graceful Shutdown (`nodulus.listen()`)**: `createApp()` now returns a `listen(server)` method that registers `SIGINT` and `SIGTERM` handlers. On signal: closes the HTTP server, runs the optional `onShutdown` hook, then exits with code `0`. Eliminates zombie processes and port-in-use errors on restart.
+- **`onShutdown` option in `CreateAppOptions`**: Async callback invoked during the shutdown sequence after the HTTP server closes. Use for releasing DB connections, message queues, open file handles, etc.
 - **`WatcherOptions`**: exportado en la API pública.
 - **Runtime Pre-loader Hook** (`src/preload/preload-hook.ts`): A stateless ESM loader hook registered via Node.js `module.register()`. Receives embedded alias config through the `initialize()` hook, resolves aliases during module loading, and prioritises more-specific aliases over general ones when paths overlap.
 - **`nodulus sync-preload` CLI command**: Generates `.nodulus/preload.js` — a static ESM entry point that embeds your current alias configuration and registers the hook at Node.js startup. Idempotent: running it twice with the same config produces no file changes.
