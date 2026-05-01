@@ -125,13 +125,50 @@ export function useLogger(name: string): Logger {
 }
 
 /**
- * Creates a bound logger that filters by minLevel and delegates to handler.
- * 
- * @param handler  - Where log events are sent.
- * @param minLevel - Events below this level are discarded.
- * @param module   - Optional module context for logs.
+ * Creates a configured Logger instance for user applications.
+ *
+ * **Overload 1 — string shorthand** (public API):
+ * ```ts
+ * const log = createLogger('my-app');
+ * log.info('server ready');
+ * ```
+ * Uses the user-facing handler (no [Nodulus] prefix) and resolves the log level
+ * from the environment (`NODULUS_LOG_LEVEL` / `NODE_DEBUG`).
+ *
+ * **Overload 2 — full control** (internal / advanced):
+ * ```ts
+ * const log = createLogger(handler, 'warn', 'boot');
+ * ```
+ * Delegates to a custom handler, filters by `minLevel`, and optionally injects
+ * `_module` into every log event's meta.
+ *
+ * @param handlerOrName - A `LogHandler` function OR an application name string.
+ * @param minLevel      - Minimum level (only used in the full-control overload).
+ * @param module        - Module context (only used in the full-control overload).
  */
-export function createLogger(handler: LogHandler, minLevel: LogLevel, module?: string): Logger {
+export function createLogger(name: string): Logger;
+export function createLogger(handler: LogHandler, minLevel: LogLevel, module?: string): Logger;
+export function createLogger(
+  handlerOrName: LogHandler | string,
+  minLevel?: LogLevel,
+  module?: string,
+): Logger {
+  // ── String overload: user-facing convenience API ──────────────────────────
+  if (typeof handlerOrName === 'string') {
+    const handler = createUserLogHandler(handlerOrName);
+    const resolvedLevel = resolveLogLevel();
+    return _buildLogger(handler, resolvedLevel);
+  }
+
+  // ── Handler overload: full-control internal API ───────────────────────────
+  return _buildLogger(handlerOrName, minLevel!, module);
+}
+
+/**
+ * Internal factory. Creates a bound logger that filters by minLevel and
+ * delegates to handler.
+ */
+function _buildLogger(handler: LogHandler, minLevel: LogLevel, module?: string): Logger {
   const minOrder = LEVEL_ORDER[minLevel];
 
   const emit = (level: LogLevel, message: string, meta?: Record<string, unknown>) => {
