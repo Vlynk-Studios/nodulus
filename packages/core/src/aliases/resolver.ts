@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { register } from 'node:module';
-import type { Logger } from '../core/logger.js';
+import type { Logger } from '../types/index.js';
 
 // Node.js Customization Hooks types
 export type ResolveHookContext = {
@@ -24,6 +24,15 @@ let _registrationPromise: Promise<void> | null = null;
 export function clearAliasResolverOptions(): void {
   registeredHashes.clear();
   _registrationPromise = null;
+}
+
+function mergeAliasesIntoPreloadConfig(aliases: Record<string, string>): void {
+  if (globalThis.__NODULUS_PRELOAD_CONFIG__) {
+    globalThis.__NODULUS_PRELOAD_CONFIG__.aliases = {
+      ...globalThis.__NODULUS_PRELOAD_CONFIG__.aliases,
+      ...aliases
+    };
+  }
 }
 
 /**
@@ -58,6 +67,15 @@ export async function activateAliasResolver(moduleAliases: Record<string, string
 
   const combinedAliases = { ...normalizedModuleAliases, ...normalizedFolderAliases };
   const serialisedAliases = JSON.stringify(combinedAliases);
+
+  if (globalThis.__NODULUS_PRELOAD_CONFIG__?.preloaded === true) {
+    mergeAliasesIntoPreloadConfig(combinedAliases);
+    log.info(`ESM alias hook skipped (handled by pre-loader), merged ${Object.keys(combinedAliases).length} alias(es) into runtime config`, {
+      _module: 'alias',
+      aliasCount: Object.keys(combinedAliases).length,
+    });
+    return;
+  }
 
   if (registeredHashes.has(serialisedAliases)) return;
 
@@ -113,6 +131,7 @@ export async function resolve(specifier, context, nextResolve) {
     if (typeof register === 'function') {
       register(dataUrl, { parentURL: parentUrl });
       log.info(`ESM alias hook activated (${Object.keys(combinedAliases).length} alias(es))`, {
+        _module: 'alias',
         aliasCount: Object.keys(combinedAliases).length,
       });
     } else {

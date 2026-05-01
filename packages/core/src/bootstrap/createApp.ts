@@ -18,6 +18,7 @@ import { reconcile, buildUpdatedNitsRegistry, buildNitsIdMap } from '../nits/nit
 import { reportReconciliation } from '../nits/nits-reporter.js';
 import { computeModuleHash } from '../nits/nits-hash.js';
 import { normalizePath } from '../core/utils/paths.js';
+import { registerShutdown } from '../core/shutdown.js';
 import type { DiscoveredModule } from '../types/nits.js';
 
 export async function createApp(
@@ -59,12 +60,46 @@ export async function createApp(
     const startTime = performance.now();
     try {
 
+  // Step 0.1 — Pre-loader Validation
+  const preloadConfig = globalThis.__NODULUS_PRELOAD_CONFIG__;
+  const preloaderActive = preloadConfig?.preloaded === true;
+
+  if (options.requirePreloader === true && !preloaderActive) {
+    throw new NodulusError(
+      'PRELOADER_REQUIRED',
+      'The application requires the Nodulus pre-loader to be active.',
+      'Run the application with "node --import ./.nodulus/preload.js" or set requirePreloader: false in createApp options.'
+    );
+  }
+
   // Step 1 — Load configuration
   const config = await loadConfig(options);
-  const log = createLogger(config.logger, config.logLevel);
+  const log = createLogger(config.logger, config.logLevel, 'boot');
+
+  // Step 1.1 — Pre-loader Warnings
+  if (!preloaderActive && config.resolveAliases !== false) {
+    log.warn('Pre-loader not detected. Alias resolution might fail for top-level imports. Running in legacy mode (v1.4.0).', { suggestion: 'Run "npx nodulus sync-preload" and use "node --import ./.nodulus/preload.js"' });
+  }
+
+  if (preloaderActive) {
+      const getPkg = () => {
+        const depths = ['../package.json', '../../package.json', '../../../package.json'];
+        for (const d of depths) {
+          try {
+            const p = new URL(d, import.meta.url);
+            return JSON.parse(fs.readFileSync(p, 'utf8'));
+          } catch (_e) { /* not a valid package.json path, try next */ }
+        }
+        return {};
+      };
+      const currentVersion = getPkg().version;
+      if (preloadConfig?._version && preloadConfig._version !== currentVersion) {
+          log.warn(`Pre-loader version mismatch. Pre-loader: ${preloadConfig._version}, Core: ${currentVersion}.`, { suggestion: 'Run "npx nodulus sync-preload" to update it.' });
+      }
+  }
 
   if (config.domains || config.shared) {
-    log.warn('Infrastructure (domains/shared) is not yet supported in v1.2.x. These keys in configuration will be ignored until v2.0.0.');
+    log.warn('Infrastructure (domains/shared) is not yet supported in v1.2.x. These keys in configuration will be ignored until v2.0.0.', { _module: 'config' });
   }
 
   log.info('Bootstrap started', {
@@ -87,7 +122,7 @@ export async function createApp(
   const resolvedModules: { name: string, dirPath: string, indexPath: string }[] = [];
 
   for (const dirPath of moduleDirs) {
-    log.debug(`Discovered module directory: ${dirPath}`, { dirPath });
+    log.debug(`Discovered module directory: ${dirPath}`, { dirPath, _module: 'module' });
     const tsPath = path.join(dirPath, 'index.ts');
     const jsPath = path.join(dirPath, 'index.js');
     
@@ -143,10 +178,10 @@ export async function createApp(
       const nitsIdMap = buildNitsIdMap(nitsResult, cwd);
       registry.seedNitsIds(nitsIdMap);
       
-      log.debug('NITS identity reconciliation complete.');
+      log.debug('NITS identity reconciliation complete.', { _module: 'nits' });
     } catch (err: any) {
-      log.warn(`NITS reconciliation failed: ${err.message}. Bootstrap will continue with temporary identities.`);
-      log.debug('NITS Error detail:', err);
+      log.warn(`NITS reconciliation failed: ${err.message}. Bootstrap will continue with temporary identities.`, { _module: 'nits' });
+      log.debug('NITS Error detail:', { error: err, _module: 'nits' });
     }
   }
 
@@ -165,7 +200,7 @@ export async function createApp(
     const normalizedConfigAliases: Record<string, string> = {};
     for (const [alias, target] of Object.entries(config.aliases)) {
       if (pureModuleAliases[alias]) {
-        log.warn(`Alias collision: User alias "${alias}" overrides an auto-generated module alias. Configuration will take precedence.`, { alias, target });
+        log.warn(`Alias collision: User alias "${alias}" overrides an auto-generated module alias. Configuration will take precedence.`, { alias, target, _module: 'alias' });
       }
 
       const isWildcard = target.endsWith('/*');
@@ -199,13 +234,13 @@ export async function createApp(
         if (config.strict) {
           throw new NodulusError('ALIAS_INVALID', msg);
         } else {
-          log.warn(msg);
+          log.warn(msg, { _module: 'alias' });
         }
       }
 
       registry.registerAlias(alias, finalTargetPath);
       normalizedConfigAliases[alias] = finalTargetPath;
-      log.debug(`Alias registered: ${alias} → ${finalTargetPath}`, { alias, finalTargetPath, source: 'config' });
+      log.debug(`Alias registered: ${alias} → ${finalTargetPath}`, { alias, finalTargetPath, source: 'config', _module: 'alias' });
     }
 
     await activateAliasResolver(pureModuleAliases, normalizedConfigAliases, log);
@@ -229,7 +264,7 @@ export async function createApp(
     }
 
     log.info(`Module loaded: ${pc.green(registeredMod.name)}`, {
-      id: registeredMod.id,
+      _module: 'module',
       name: registeredMod.name,
       imports: registeredMod.imports,
       exports: registeredMod.exports,
@@ -254,7 +289,7 @@ export async function createApp(
         if (!declaredExports.includes(actual)) {
           log.warn(
             `Module "${registeredMod.name}" exports "${actual}" but it is not declared in Module() options "exports" array.`,
-            { name: registeredMod.name, exportName: actual }
+            { name: registeredMod.name, exportName: actual, _module: 'module' }
           );
         }
       }
@@ -313,7 +348,7 @@ export async function createApp(
             throw new NodulusError('UNDECLARED_IMPORT', message, details);
           } else {
             log.warn(message, {
-              module: registeredMod.name,
+              _module: 'module',
               target: targetModule,
               file: path.normalize(file),
               line: imp.line,
@@ -329,7 +364,7 @@ export async function createApp(
         if (config.strict) {
           throw new NodulusError('UNUSED_IMPORT', message, `Remove "${declared}" from imports[] in "${registeredMod.name}".`);
         } else {
-          log.warn(message, { module: registeredMod.name, unusedTarget: declared });
+          log.warn(message, { module: registeredMod.name, unusedTarget: declared, _module: 'module' });
         }
       }
     }
@@ -361,7 +396,7 @@ export async function createApp(
     files.sort();
 
     for (let file of files) {
-      log.debug(`Scanning controller file: ${file}`, { filePath: file, module: mod.name });
+      log.debug(`Scanning controller file: ${file}`, { filePath: file, module: mod.name, _module: 'router' });
       file = path.normalize(file);
       let imported: any;
       try {
@@ -404,7 +439,7 @@ export async function createApp(
     for (const ctrl of rawMod.controllers) {
       if (!ctrl.enabled) {
         log.info(`Controller "${ctrl.name}" is disabled — skipping mount`, {
-          name: ctrl.name,
+          _module: 'router',
           module: mod.name,
           prefix: ctrl.prefix,
         });
@@ -461,7 +496,7 @@ export async function createApp(
         for (const route of extractedRoutes) {
           const colorFn = methodColors[route.method] || pc.white;
           log.info(`  ${colorFn(route.method.padEnd(6))} ${pc.white(route.path)}  ${pc.gray(`(${ctrl.name})`)}`, {
-            method: route.method,
+            _module: 'router',
             path: route.path,
             module: mod.name,
             controller: ctrl.name,
@@ -484,7 +519,19 @@ export async function createApp(
     return {
       modules: safeRegisteredModules,
       routes: mountedRoutes,
-      registry
+      registry,
+      runtime: {
+        preloaderActive,
+        preloaderVersion: preloadConfig?._version ?? null,
+        aliasesAtBoot: preloadConfig?.aliases ?? {}
+      },
+      listen(server) {
+        return registerShutdown({
+          server,
+          onShutdown: options.onShutdown,
+          logger: log,
+        });
+      }
     };
 
     } catch (err) {

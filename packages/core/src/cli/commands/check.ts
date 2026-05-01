@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import path from 'node:path';
+import fs from 'node:fs';
 import pc from 'picocolors';
 import { loadConfig } from '../../core/config.js';
 import { buildModuleGraph } from '../lib/graph-builder.js';
@@ -23,6 +24,30 @@ export function checkCommand(): Command {
     .action(async (options) => {
         const cwd = process.cwd();
         const config = await loadConfig();
+
+        const logger = createLogger(defaultLogHandler, 'info', 'check');
+
+        // Pre-loader verification
+        try {
+            const preloadPath = path.join(cwd, '.nodulus', 'preload.js');
+            if (!fs.existsSync(preloadPath)) {
+                logger.warn('Pre-loader not detected. Run "npx nodulus sync-preload" to optimize alias resolution.');
+            } else {
+                const content = fs.readFileSync(preloadPath, 'utf8');
+                const versionMatch = content.match(/_version:\s*'([^']+)'/);
+                if (versionMatch) {
+                    const preloadVersion = versionMatch[1];
+                    const pkgPath = new URL('../../../package.json', import.meta.url);
+                    const currentVersion = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
+                    
+                    if (preloadVersion !== currentVersion) {
+                        logger.warn(`Pre-loader version mismatch (found v${preloadVersion}, core is v${currentVersion}). Run "npx nodulus sync-preload" to update.`);
+                    }
+                }
+            }
+        } catch (err: any) {
+            logger.warn(`Failed to verify pre-loader status: ${err.message}`);
+        }
         
         const graph = await buildModuleGraph(config, cwd);
         
@@ -58,11 +83,11 @@ export function checkCommand(): Command {
 
             const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0;
             if (hasChanges && options.format !== 'json') {
-              const logger = createLogger(defaultLogHandler, 'info');
+              const logger = createLogger(defaultLogHandler, 'info', 'check');
               reportReconciliation(result, logger);
             }
           } catch (err: any) {
-            const logger = createLogger(defaultLogHandler, 'warn');
+            const logger = createLogger(defaultLogHandler, 'warn', 'check');
             logger.warn(`NITS reconciliation failed: ${err.message}. Analysis will continue...`);
           }
         }

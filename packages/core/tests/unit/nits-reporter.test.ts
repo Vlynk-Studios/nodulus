@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { reportReconciliation } from '../../src/nits/nits-reporter.js';
 import type { ReconciliationResult } from '../../src/types/nits.js';
-import type { Logger } from '../../src/core/logger.js';
+import type { Logger } from '../../src/types/index.js';
 
 vi.mock('picocolors', () => {
   const identity = (s: any) => s;
@@ -28,6 +28,7 @@ const makeModule = (name: string) => ({
   path: `src/${name}`,
   hash: 'h',
   status: 'active' as const,
+  createdAt: '2024-01-01T00:00:00.000Z',
   lastSeen: '',
   identifiers: []
 });

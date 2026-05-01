@@ -140,6 +140,7 @@ describe('createApp', () => {
           'info',
           expect.stringMatching(/Module loaded:.*users/),
           expect.objectContaining({
+            _module: 'module',
             name: 'users',
             path: expect.any(String)
           })
@@ -165,7 +166,7 @@ describe('createApp', () => {
           'info',
           expect.stringContaining('is disabled — skipping mount'),
           expect.objectContaining({ 
-            name: 'controller', 
+            _module: 'router',
             module: 'users' 
           })
         );

@@ -1,6 +1,6 @@
 {
   "name": "@vlynk-studios/nodulus-core",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "A lightweight structural layer for Express with native ESM hooks support.",
   "author": "Vlynk Studios & Keiver-dev",
   "license": "MIT",
@@ -15,6 +15,9 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./preload-hook": {
+      "import": "./dist/preload/preload-hook.js"
     }
   },
   "files": [
@@ -72,11 +75,13 @@
     "express": "5.2.1",
     "supertest": "7.2.2",
     "tsup": "8.5.1",
+    "tsx": "^4.21.0",
     "typescript": "5.4.5",
     "typescript-eslint": "8.58.1",
     "vitest": "4.1.2"
   },
   "dependencies": {
+    "chokidar": "^5.0.0",
     "commander": "14.0.3",
     "comment-json": "4.6.2",
     "fast-glob": "3.3.3",

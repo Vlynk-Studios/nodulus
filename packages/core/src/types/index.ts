@@ -38,6 +38,16 @@ export type LogHandler = (
   meta?: Record<string, unknown>
 ) => void;
 
+/**
+ * Public logger interface.
+ */
+export interface Logger {
+  debug(message: string, meta?: Record<string, unknown>): void;
+  info(message:  string, meta?: Record<string, unknown>): void;
+  warn(message:  string, meta?: Record<string, unknown>): void;
+  error(message: string, meta?: Record<string, unknown>): void;
+}
+
 // ─── Public API types ─────────────────────────────────────────────────────────
 // Exported as part of the public surface. Stable between minor versions unless
 // documented otherwise.
@@ -172,6 +182,38 @@ export interface CreateAppOptions {
   logLevel?: LogLevel;
   /** NITS (Nodulus Integrated Tracking System) configuration. */
   nits?: NitsConfig;
+  /**
+   * When `true`, `createApp()` throws `PRELOADER_REQUIRED` if the runtime pre-loader
+   * is not active (i.e., the process was not started with `--import ./.nodulus/preload.js`).
+   *
+   * Use this to enforce that top-level alias resolution is always available in
+   * environments that require it (e.g. strict production deployments).
+   *
+   * @default false
+   * @since v1.5.0
+   */
+  requirePreloader?: boolean;
+  /**
+   * Async callback invoked during the graceful shutdown sequence, after the
+   * HTTP server is closed and before the process exits.
+   *
+   * Use this to cleanly release external resources (DB connections, message
+   * queues, caches, open file handles, etc.).
+   *
+   * @example
+   * ```ts
+   * const nodulus = await createApp(app, {
+   *   modules: 'src/modules/*',
+   *   onShutdown: async () => {
+   *     await db.close();
+   *     await redisClient.quit();
+   *   }
+   * });
+   * nodulus.listen(3000);
+   * ```
+   * @since v1.5.0
+   */
+  onShutdown?: () => void | Promise<void>;
 }
 
 /** Resolved configuration used internally (defaults applied). */
@@ -189,6 +231,7 @@ export interface ResolvedConfig {
     enabled: boolean;
     similarityThreshold?: number;
   };
+  requirePreloader: boolean;
 }
 
 /** A module as it appears in the NodularApp result after bootstrap. */
@@ -233,6 +276,49 @@ export interface NodulusApp {
   modules: RegisteredModule[];
   routes: MountedRoute[];
   registry: NodulusRegistry;
+  /**
+   * Runtime metadata about the Nodulus pre-loader.
+   * Populated during Step 0 of the bootstrap pipeline.
+   * @since v1.5.0
+   */
+  runtime: {
+    /**
+     * `true` when the process was started with `--import ./.nodulus/preload.js`,
+     * meaning top-level alias resolution is available.
+     */
+    preloaderActive: boolean;
+    /**
+     * The version of `nodulus-core` that generated `.nodulus/preload.js`,
+     * or `null` if the pre-loader is not active.
+     */
+    preloaderVersion: string | null;
+    /**
+     * Snapshot of all aliases that were active at bootstrap time.
+     * Empty object when the pre-loader is not active.
+     */
+    aliasesAtBoot: Record<string, string>;
+  };
+  /**
+   * Registers the HTTP server instance with the Nodulus shutdown manager.
+   * Once called, SIGINT (Ctrl+C) and SIGTERM signals will trigger a graceful
+   * shutdown sequence:
+   *   1. Close the HTTP server (no new connections accepted).
+   *   2. Run the `onShutdown` hook from `createApp()` options (if provided).
+   *   3. Exit with code 0.
+   *
+   * Also returns a `shutdown()` function you can call programmatically.
+   *
+   * @param server - The `http.Server` returned by `app.listen(...)`.
+   * @returns A function that triggers the shutdown sequence manually.
+   *
+   * @example
+   * ```ts
+   * const server = app.listen(3000);
+   * nodulus.listen(server);
+   * ```
+   * @since v1.5.1
+   */
+  listen(server: import('node:http').Server): () => Promise<void>;
 }
 
 /** Shape of nodulus.config.ts. Options passed directly to createApp() take priority. */
@@ -254,4 +340,17 @@ export interface GetAliasesOptions {
   includeConfigAliases?: boolean;
   /** If true, returns absolute paths. Default: false. */
   absolute?: boolean;
+}
+
+export interface WatcherOptions {
+  /** Paths o globs a observar. Acepta string o array de strings. */
+  paths: string | string[];
+  /** Globs o funciones a ignorar. Por defecto ignora node_modules y .git */
+  ignored?: string | string[] | ((path: string) => boolean);
+  /** Debounce en ms antes de reiniciar. Default: 300 */
+  debounceMs?: number;
+  /** Callback a ejecutar cuando se detecta un cambio. Recibe el path del archivo modificado. */
+  onRestart: (changedPath: string) => void | Promise<void>;
+  /** Instancia del logger de Nodulus. */
+  logger: Logger; // referencia al Logger interno existente
 }

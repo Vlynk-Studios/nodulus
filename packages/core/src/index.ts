@@ -13,6 +13,7 @@ export * from './aliases/cache.js';
 export * from './aliases/resolver.js';
 export * from './core/config.js';
 export * from './core/logger.js';
+export * from './preload/index.js';
 
 export type {
   CreateAppOptions,
@@ -29,5 +30,9 @@ export type {
   NodulusConfig,
   GetAliasesOptions,
   LogLevel,
-  LogHandler
+  LogHandler,
+  Logger,
+  WatcherOptions
 } from './types/index.js';
+
+export type { PreloadConfig } from './preload/index.js';
