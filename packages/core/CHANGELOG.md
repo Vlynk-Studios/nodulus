@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] - 2026-04-28
+## [1.5.0] - 2026-05-01
 
 > **Runtime Pre-loader:** Solves ESM import timing — aliases are now available in top-level `import` statements of your server entry file, not just inside dynamically-loaded modules.
 
