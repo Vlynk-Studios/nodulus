@@ -690,6 +690,19 @@ await createApp(app, {
 })
 ```
 
+### Using the Nodulus Logger in your app (v1.5.0+)
+
+You can use the same visual style for your own application logs by using `useLogger`. This creates a logger instance that respects your global log level settings and provides aligned, color-coded output.
+
+```ts
+import { useLogger } from '@vlynk-studios/nodulus-core'
+
+const log = useLogger('my-app')
+
+log.info('Application started')
+// Output: [my-app]  info   Application started
+```
+
 ### User-space logs
 
 Nodulus **does not** intercept or wrap standard `console.log` calls from your application code.

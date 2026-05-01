@@ -1,5 +1,5 @@
 import pc from 'picocolors';
-import type { LogLevel, LogHandler } from '../types/index.js';
+import type { LogLevel, LogHandler, Logger } from '../types/index.js';
 
 const LEVEL_ORDER: Record<LogLevel, number> = {
   debug: 0,
@@ -14,8 +14,6 @@ const LEVEL_STYLE: Record<LogLevel, (msg: string) => string> = {
   warn:  (msg) => pc.yellow(msg),
   error: (msg) => pc.red(msg),
 };
-
-
 
 /**
  * Default log handler. Writes to process.stdout (info/debug) or process.stderr (warn/error).
@@ -87,13 +85,6 @@ export function resolveLogLevel(explicit?: LogLevel): LogLevel {
   return 'info';
 }
 
-export interface Logger {
-  debug(message: string, meta?: Record<string, unknown>): void;
-  info(message:  string, meta?: Record<string, unknown>): void;
-  warn(message:  string, meta?: Record<string, unknown>): void;
-  error(message: string, meta?: Record<string, unknown>): void;
-}
-
 /**
  * Creates a log handler specifically for user applications.
  * Output format: [name]  LEVEL  message (without Nodulus prefix).
@@ -112,7 +103,7 @@ export function createUserLogHandler(name: string): LogHandler {
       case 'error': coloredMessage = pc.red(rawMessage); break;
     }
 
-    const line = `${prefix}  ${coloredLabel}  ${coloredMessage}`;
+    const line = `${prefix} ${coloredLabel}  ${coloredMessage}`;
     
     if (level === 'warn' || level === 'error') {
       process.stderr.write(line + '\n');
@@ -127,7 +118,11 @@ export function createUserLogHandler(name: string): LogHandler {
  * 
  * @param name - The name of the application or module (used as prefix).
  */
-export function createLogger(name: string): Logger;
+export function useLogger(name: string): Logger {
+  const handler = createUserLogHandler(name);
+  const resolvedLevel = resolveLogLevel();
+  return createLogger(handler, resolvedLevel);
+}
 
 /**
  * Creates a bound logger that filters by minLevel and delegates to handler.
@@ -136,17 +131,8 @@ export function createLogger(name: string): Logger;
  * @param minLevel - Events below this level are discarded.
  * @param module   - Optional module context for logs.
  */
-export function createLogger(handler: LogHandler, minLevel: LogLevel, module?: string): Logger;
-
-export function createLogger(arg1: string | LogHandler, minLevel?: LogLevel, module?: string): Logger {
-  if (typeof arg1 === 'string') {
-    const handler = createUserLogHandler(arg1);
-    const resolvedLevel = resolveLogLevel();
-    return createLogger(handler, resolvedLevel);
-  }
-
-  const handler = arg1;
-  const minOrder = LEVEL_ORDER[minLevel!];
+export function createLogger(handler: LogHandler, minLevel: LogLevel, module?: string): Logger {
+  const minOrder = LEVEL_ORDER[minLevel];
 
   const emit = (level: LogLevel, message: string, meta?: Record<string, unknown>) => {
     if (LEVEL_ORDER[level] >= minOrder) {

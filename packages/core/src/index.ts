@@ -31,6 +31,7 @@ export type {
   GetAliasesOptions,
   LogLevel,
   LogHandler,
+  Logger,
   WatcherOptions
 } from './types/index.js';
 

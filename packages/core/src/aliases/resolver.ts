@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { register } from 'node:module';
-import type { Logger } from '../core/logger.js';
+import type { Logger } from '../types/index.js';
 
 // Node.js Customization Hooks types
 export type ResolveHookContext = {

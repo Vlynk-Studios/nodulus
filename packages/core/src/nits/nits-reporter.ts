@@ -1,6 +1,6 @@
 import pc from 'picocolors';
 import type { ReconciliationResult } from '../types/nits.js';
-import type { Logger } from '../core/logger.js';
+import type { Logger } from '../types/index.js';
 import { calculateAlias } from './utils.js';
 
 export function reportReconciliation(result: ReconciliationResult, log: Logger): void {

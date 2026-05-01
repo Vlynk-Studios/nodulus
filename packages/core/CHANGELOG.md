@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **`nodulus dev --watch`**: file watching basado en chokidar v5 con debounce configurable.
+- **Canonical Logging System**: Redesigned the internal logger for consistent, aligned, and metadata-driven output across all core components.
+- **New `useLogger(name)` API**: Public zero-config API for user-space logging that follows the framework's visual style and respects global settings.
+- **`NODULUS_LOG_LEVEL` environment variable**: Global control for log verbosity across both framework and user-space logs.
+- **Aligned Output Format**: Fixed-width columns for `[Nodulus]`, `LEVEL`, and `[module]` ensuring perfectly readable console output even with varying module names.
+- **Contextual Metadata**: Injected `_module` context into all internal logs, allowing centralized formatting without hardcoded prefixes in strings.
 - **`WatcherOptions`**: exportado en la API pública.
 - **Runtime Pre-loader Hook** (`src/preload/preload-hook.ts`): A stateless ESM loader hook registered via Node.js `module.register()`. Receives embedded alias config through the `initialize()` hook, resolves aliases during module loading, and prioritises more-specific aliases over general ones when paths overlap.
 - **`nodulus sync-preload` CLI command**: Generates `.nodulus/preload.js` — a static ESM entry point that embeds your current alias configuration and registers the hook at Node.js startup. Idempotent: running it twice with the same config produces no file changes.

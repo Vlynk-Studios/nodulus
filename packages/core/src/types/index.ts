@@ -38,6 +38,16 @@ export type LogHandler = (
   meta?: Record<string, unknown>
 ) => void;
 
+/**
+ * Public logger interface.
+ */
+export interface Logger {
+  debug(message: string, meta?: Record<string, unknown>): void;
+  info(message:  string, meta?: Record<string, unknown>): void;
+  warn(message:  string, meta?: Record<string, unknown>): void;
+  error(message: string, meta?: Record<string, unknown>): void;
+}
+
 // ─── Public API types ─────────────────────────────────────────────────────────
 // Exported as part of the public surface. Stable between minor versions unless
 // documented otherwise.
@@ -300,5 +310,5 @@ export interface WatcherOptions {
   /** Callback a ejecutar cuando se detecta un cambio. Recibe el path del archivo modificado. */
   onRestart: (changedPath: string) => void | Promise<void>;
   /** Instancia del logger de Nodulus. */
-  logger: import('../core/logger.js').Logger; // referencia al Logger interno existente
+  logger: Logger; // referencia al Logger interno existente
 }

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createLogger, resolveLogLevel, defaultLogHandler } from '../../src/core/logger.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createLogger, useLogger, resolveLogLevel, defaultLogHandler } from '../../src/core/logger.js';
 import type { LogHandler } from '../../src/types/index.js';
 
 describe('Logger Utility', () => {
@@ -18,26 +18,63 @@ describe('Logger Utility', () => {
       expect(handler).toHaveBeenCalledWith('error', 'error message', undefined);
     });
 
-    it('should pass meta data correctly', () => {
+    it('should pass meta data correctly and merge module', () => {
       const handler = vi.fn() as unknown as LogHandler;
-      const log = createLogger(handler, 'debug');
+      const log = createLogger(handler, 'debug', 'test-mod');
       const meta = { foo: 'bar' };
 
       log.info('test', meta);
 
-      expect(handler).toHaveBeenCalledWith('info', 'test', meta);
+      expect(handler).toHaveBeenCalledWith('info', 'test', { _module: 'test-mod', foo: 'bar' });
+    });
+
+    it('should allow meta._module to override the default module', () => {
+      const handler = vi.fn() as unknown as LogHandler;
+      const log = createLogger(handler, 'debug', 'default-mod');
+      
+      log.info('test', { _module: 'override-mod' });
+
+      expect(handler).toHaveBeenCalledWith('info', 'test', { _module: 'override-mod' });
+    });
+  });
+
+  describe('useLogger', () => {
+    it('should create a logger with the given name as prefix', () => {
+      const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const log = useLogger('my-app');
+      
+      log.info('hello');
+      
+      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('[my-app]'));
+      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('hello\n'));
+      expect(stdoutSpy).not.toHaveBeenCalledWith(expect.stringContaining('[Nodulus]'));
+      
+      stdoutSpy.mockRestore();
     });
   });
 
   describe('resolveLogLevel', () => {
-    const originalEnv = process.env.NODE_DEBUG;
+    const originalNodeDebug = process.env.NODE_DEBUG;
+    const originalNodulusLogLevel = process.env.NODULUS_LOG_LEVEL;
 
     beforeEach(() => {
-      process.env.NODE_DEBUG = originalEnv;
+      delete process.env.NODE_DEBUG;
+      delete process.env.NODULUS_LOG_LEVEL;
+    });
+
+    afterEach(() => {
+      process.env.NODE_DEBUG = originalNodeDebug;
+      process.env.NODULUS_LOG_LEVEL = originalNodulusLogLevel;
     });
 
     it('should return explicit level if provided', () => {
       expect(resolveLogLevel('error')).toBe('error');
+    });
+
+    it('should prioritize NODULUS_LOG_LEVEL over NODE_DEBUG', () => {
+      process.env.NODULUS_LOG_LEVEL = 'warn';
+      process.env.NODE_DEBUG = 'nodulus';
+      expect(resolveLogLevel()).toBe('warn');
     });
 
     it('should return debug if NODE_DEBUG includes nodulus', () => {
@@ -46,26 +83,62 @@ describe('Logger Utility', () => {
     });
 
     it('should return info by default', () => {
-      process.env.NODE_DEBUG = '';
       expect(resolveLogLevel()).toBe('info');
     });
   });
 
   describe('defaultLogHandler', () => {
-    it('should prefix and write messages correctly', () => {
-      const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    let stdoutSpy: any;
+    let stderrSpy: any;
 
-      defaultLogHandler('info', 'hello world');
-      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('hello world\n'));
-      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('[Nodulus]'));
+    beforeEach(() => {
+      stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    });
 
-      defaultLogHandler('warn', 'warning');
-      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('warning\n'));
-      expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('[Nodulus]'));
-
+    afterEach(() => {
       stdoutSpy.mockRestore();
       stderrSpy.mockRestore();
+    });
+
+    it('should format message with [Nodulus] prefix and alignment', () => {
+      defaultLogHandler('info', 'hello world');
+      const output = stdoutSpy.mock.calls[0][0];
+      
+      expect(output).toContain('[Nodulus]');
+      expect(output).toContain('info '); // padding
+      expect(output).toContain('hello world\n');
+    });
+
+    it('should parse module from string prefix [mod]', () => {
+      defaultLogHandler('info', '[boot] system started');
+      const output = stdoutSpy.mock.calls[0][0];
+      
+      expect(output).toContain('[boot]');
+      expect(output).toContain('system started\n');
+      expect(output).not.toContain('[boot] [boot]'); // should strip from message
+    });
+
+    it('should use meta._module for module context', () => {
+      defaultLogHandler('info', 'database connected', { _module: 'db' });
+      const output = stdoutSpy.mock.calls[0][0];
+      
+      expect(output).toContain('[db]');
+      expect(output).toContain('database connected\n');
+    });
+
+    it('should keep alignment even with empty module', () => {
+      defaultLogHandler('info', 'no module here');
+      const output = stdoutSpy.mock.calls[0][0];
+      
+      // Module column should be 10 spaces
+      expect(output).toContain(' '.repeat(10));
+    });
+
+    it('should write warn/error to stderr', () => {
+      defaultLogHandler('warn', 'low disk space');
+      expect(stderrSpy).toHaveBeenCalled();
+      expect(stdoutSpy).not.toHaveBeenCalled();
     });
   });
 });

@@ -8,7 +8,7 @@
  * Real file system access and timing are never involved.
  */
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
-import type { Logger } from '../../src/core/logger.js';
+import type { Logger } from '../../src/types/index.js';
 
 // ─── Chokidar mock ────────────────────────────────────────────────────────────
 // The mock factory runs ONCE at module load time (hoisted by vi.mock).
@@ -149,7 +149,7 @@ describe('createWatcher', () => {
     createWatcher({ paths: '/src', logger, onRestart: vi.fn() });
 
     emit('ready');
-    expect(logger.info).toHaveBeenCalledWith('[watcher] Watching for file changes...');
+    expect(logger.info).toHaveBeenCalledWith('Watching for file changes...', { _module: 'watcher' });
   });
 
   it('add event after ready triggers onRestart (post-initial-scan file)', () => {
@@ -176,7 +176,8 @@ describe('createWatcher', () => {
     // Must not throw
     expect(() => emit('error', boom)).not.toThrow();
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('ENOSPC: no space left on device')
+      expect.stringContaining('ENOSPC: no space left on device'),
+      { _module: 'watcher' }
     );
   });
 
@@ -185,7 +186,8 @@ describe('createWatcher', () => {
 
     expect(() => emit('error', 'raw string error')).not.toThrow();
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('raw string error')
+      expect.stringContaining('raw string error'),
+      { _module: 'watcher' }
     );
   });
 
