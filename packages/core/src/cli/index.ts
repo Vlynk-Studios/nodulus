@@ -3,11 +3,13 @@ import { Command } from 'commander'
 import { createModuleCommand } from './commands/create-module.js'
 import { syncTsconfigCommand } from './commands/sync-tsconfig.js'
 import { checkCommand } from './commands/check.js'
+import { devCommand } from './commands/dev.js'
+import { syncPreloadCommand } from './commands/sync-preload.js'
 
-import { createRequire } from 'node:module';
+import fs from 'node:fs';
 
-const require = createRequire(import.meta.url);
-const pkg = require('../../package.json');
+const pkgPath = new URL('../../package.json', import.meta.url);
+const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 
 const program = new Command()
 program
@@ -17,6 +19,8 @@ program
   .addCommand(createModuleCommand())
   .addCommand(syncTsconfigCommand())
   .addCommand(checkCommand())
+  .addCommand(devCommand())
+  .addCommand(syncPreloadCommand())
   .exitOverride();
 
 try {

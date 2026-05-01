@@ -646,7 +646,7 @@ describe("Integration Tests", () => {
         expect(loggerHandler).toHaveBeenCalledWith(
           'warn',
           expect.stringContaining('NITS reconciliation failed: Disk Full'),
-          undefined
+          expect.objectContaining({ _module: 'nits' })
         );
       });
     });

@@ -49,6 +49,57 @@ npm install express
 
 ---
 
+## Getting Started with the Pre-loader _(v1.5.0+)_
+
+By default, the Node.js ESM hook activates **inside** `createApp()`. This means aliases like `@config/database` are **not** available in static top-level imports in your server entry file:
+
+```ts
+// ❌ This fails if the pre-loader is not active
+import { db } from '@config/database.js'  // MODULE_NOT_FOUND
+
+const app = express()
+await createApp(app)
+```
+
+The **runtime pre-loader** solves this by registering the ESM hook before your code runs.
+
+### Setup (one-time)
+
+**1. Generate the pre-loader file:**
+```bash
+npx nodulus sync-preload
+```
+
+This creates `.nodulus/preload.js` — commit it to version control.
+
+**2. Update your `package.json` scripts:**
+```json
+{
+  "scripts": {
+    "dev":   "nodulus dev src/server.ts",
+    "start": "node --import ./.nodulus/preload.js src/server.ts"
+  }
+}
+```
+
+**3. Aliases now work everywhere:**
+```ts
+// ✅ Works with the pre-loader active
+import { db } from '@config/database.js'
+import { UserService } from '@modules/users'
+
+const app = express()
+const { runtime } = await createApp(app)
+console.log(runtime.preloaderActive) // true
+```
+
+**Re-run `sync-preload` whenever you add or rename aliases.** The command is idempotent — if nothing changed, the file is not rewritten.
+
+> [!NOTE]
+> **Backward compatible.** Without the pre-loader, aliases still work inside modules discovered by `createApp()`. Only top-level imports in your entry file require the pre-loader.
+
+---
+
 ## Quick start
 
 ```ts
@@ -120,6 +171,8 @@ createApp(app: Application, options?: CreateAppOptions): Promise<NodulusApp>
 | `logger` | `LogHandler` | built-in | Custom log handler (supports Pino, Winston, etc.) |
 | `logLevel` | `LogLevel` | `'info'` | Minimum severity for log events |
 | `nits` | `NitsConfig` | `{ enabled: true }` | NITS identity tracking configuration |
+| `requirePreloader` | `boolean` | `false` | _(v1.5.0+)_ If `true`, `createApp()` throws `PRELOADER_REQUIRED` when the runtime pre-loader is not active |
+| `onShutdown` | `() => void \| Promise<void>` | `undefined` | _(v1.5.0+)_ Async cleanup hook invoked after the HTTP server closes and before the process exits. Use for DB connections, queues, file handles, etc. |
 
 **`NitsConfig`:**
 
@@ -135,6 +188,13 @@ interface NodulusApp {
   modules:  RegisteredModule[]
   routes:   MountedRoute[]
   registry: NodulusRegistry
+  runtime: {                       // v1.5.0+
+    preloaderActive:  boolean      // true when --import .nodulus/preload.js is active
+    preloaderVersion: string | null
+    aliasesAtBoot:    Record<string, string>
+  }
+  // v1.5.0+ — registers the HTTP server with the graceful shutdown manager
+  listen(server: http.Server): () => Promise<void>
 }
 ```
 
@@ -419,6 +479,46 @@ Run this command initially, and whenever you create, rename, or drop modules. It
 
 ---
 
+### `nodulus sync-preload` _(v1.5.0+)_
+
+Generates `.nodulus/preload.js` — a static ESM entry point that registers the alias resolution hook **before** your application code runs. This enables aliases in top-level imports of your server entry file.
+
+```bash
+npx nodulus sync-preload
+```
+
+```text
+✔ Pre-loader sync complete.
+
+To use the pre-loader, update your package.json scripts:
+  "dev":   "nodulus dev src/server.ts"
+  "start": "node --import ./.nodulus/preload.js src/server.ts"
+```
+
+The generated file embeds your current alias config and is **idempotent** — running it again with the same config produces no changes. Re-run it whenever you add or rename aliases.
+
+> [!IMPORTANT]
+> **Commit `.nodulus/preload.js` to version control.** CI/CD and production environments rely on it being present without needing to run `sync-preload` at deploy time. It is safe to commit — it contains only resolved paths and no secrets.
+
+---
+
+### `nodulus dev` _(v1.5.0+)_
+
+Starts your application in development mode. Automatically injects `--import ./.nodulus/preload.js` if the file exists, ensuring aliases are available before any module loads.
+
+```bash
+npx nodulus dev <entrypoint> [--watch] [--runtime <node|tsx>]
+```
+
+| Option | Description |
+|---|---|
+| `--watch` | Run in watch mode using Chokidar (restarts on file changes) |
+| `--runtime tsx` | Uses `tsx` instead of `node` for TypeScript without a build step |
+
+If `.nodulus/preload.js` does not exist, `nodulus dev` falls back to legacy mode (v1.4.0 behaviour) with a warning.
+
+---
+
 ### `nodulus check`
 
 Performs static architecture analysis by inspecting raw ASTs across your module structure without evaluating your application code.
@@ -561,7 +661,7 @@ Nodulus emits structured, color-coded log events throughout the bootstrap pipeli
 |---|---|---|
 | Development | `info` | Modules loading, routes mounting, startup duration |
 | Any | `warn` / `error` | Written to `stderr`; everything else to `stdout` |
-| Debug | `debug` | Set `logLevel: 'debug'` in options or `NODE_DEBUG=nodulus` |
+| Debug | `debug` | Set `logLevel: 'debug'` in options, or use `NODULUS_LOG_LEVEL=debug` or `NODE_DEBUG=nodulus` |
 
 ### Semantic levels
 
@@ -592,6 +692,74 @@ await createApp(app, {
   logger: () => {}
 })
 ```
+
+### Using the Nodulus Logger in your app (v1.5.0+)
+
+You can use the same visual style for your own application logs by using `useLogger`. This creates a logger instance that respects your global log level settings and provides aligned, color-coded output.
+
+```ts
+import { useLogger } from '@vlynk-studios/nodulus-core'
+
+const log = useLogger('my-app')
+
+log.info('Application started')
+// Output: [my-app]  info   Application started
+```
+
+### User-space logs
+
+Nodulus **does not** intercept or wrap standard `console.log` calls from your application code.
+Messages like `Mounted N route(s)` or `Server running on http://localhost:3000` generated in your `app.ts` or `server.ts` are entirely your responsibility and will output normally without the `[Nodulus]` prefix.
+
+---
+
+## Graceful Shutdown _(v1.5.0+)_
+
+By default, when you press `Ctrl+C` or a process manager sends `SIGTERM`, Node.js exits immediately — leaving the port open and blocking the next restart (the classic "zombie process" problem).
+
+Nodulus solves this with `nodulus.listen(server)`. Call it once after `app.listen()` and Nodulus handles the rest:
+
+```ts
+import express from 'express'
+import { createApp } from '@vlynk-studios/nodulus-core'
+
+const app = express()
+
+const nodulus = await createApp(app, {
+  modules: 'src/modules/*',
+  onShutdown: async () => {
+    // Called after the server closes, before process.exit(0)
+    await db.close()
+    await redisClient.quit()
+    console.log('Resources released.')
+  }
+})
+
+const server = app.listen(3000)
+nodulus.listen(server) // ← registers SIGINT + SIGTERM handlers
+```
+
+### What happens on shutdown
+
+1. **SIGINT** (Ctrl+C) or **SIGTERM** (kill / PM2 / Docker) fires.
+2. Nodulus calls `server.close()` — no new connections are accepted, port is freed.
+3. Your `onShutdown()` hook runs (DB close, queue drain, etc.).
+4. Process exits with code `0`.
+
+### Manual shutdown
+
+`nodulus.listen()` returns a `shutdown()` function you can call programmatically — useful for testing or custom signal logic:
+
+```ts
+const server = app.listen(3000)
+const shutdown = nodulus.listen(server)
+
+// Trigger shutdown from anywhere:
+await shutdown()
+```
+
+> [!TIP]
+> A double-invocation guard is built in — calling `shutdown()` twice (or receiving both SIGINT and SIGTERM simultaneously) is safe and runs the sequence only once.
 
 ---
 
@@ -635,6 +803,8 @@ try {
 | `REGISTRY_MISSING_CONTEXT` | A Nodulus API was called outside of a `createApp()` async context |
 | `INVALID_ESM_ENV` | `createApp()` called in a non-ESM environment (missing `"type": "module"` in `package.json`) |
 | `CLI_ERROR` | A CLI command failed with a validation or runtime error |
+| `PRELOADER_REQUIRED` | _(v1.5.0+)_ `requirePreloader: true` and the runtime pre-loader is not active |
+| `PRELOADER_VERSION_MISMATCH` | _(v1.5.0+)_ `.nodulus/preload.js` was generated by a different version of `nodulus-core` (warning only, not thrown) |
 
 ---
 
@@ -742,6 +912,10 @@ import type {
   LogLevel,
   LogHandler,
 } from '@vlynk-studios/nodulus-core'
+
+// v1.5.0+ pre-loader utilities
+import type { PreloadConfig } from '@vlynk-studios/nodulus-core'
+import { isPreloaderActive, getPreloadConfig } from '@vlynk-studios/nodulus-core'
 ```
 
 ---

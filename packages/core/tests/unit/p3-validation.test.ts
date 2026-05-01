@@ -59,7 +59,7 @@ describe('P3 Alias Validation', () => {
       expect(logger).toHaveBeenCalledWith(
         'warn',
         expect.stringContaining('Alias collision'),
-        expect.objectContaining({ alias: '@modules/users' })
+        expect.objectContaining({ _module: 'alias', alias: '@modules/users' })
       );
     });
   });
@@ -91,7 +91,7 @@ describe('P3 Alias Validation', () => {
       expect(logger).toHaveBeenCalledWith(
         'warn',
         expect.stringContaining('Wildcards should only point to directories'),
-        undefined
+        expect.objectContaining({ _module: 'alias' })
       );
     });
   });

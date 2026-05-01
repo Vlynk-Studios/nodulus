@@ -6,4 +6,6 @@ dist
 Rules-API.md
 Backlog.md
 coverage
+CONTEXT.md
+estructura_nodulus_core.txt
 # types/ (Removed to allow packages/core/src/types to be tracked)

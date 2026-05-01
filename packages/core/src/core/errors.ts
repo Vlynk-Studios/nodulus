@@ -17,7 +17,9 @@ export type NodulusErrorCode =
   | "DUPLICATE_SCHEMA"
   | "INVALID_ESM_ENV"
   | "CLI_ERROR"
-  | "UNUSED_IMPORT";
+  | "UNUSED_IMPORT"
+  | "PRELOADER_REQUIRED"
+  | "PRELOADER_VERSION_MISMATCH";
 
 export class NodulusError extends Error {
   readonly code: NodulusErrorCode;
