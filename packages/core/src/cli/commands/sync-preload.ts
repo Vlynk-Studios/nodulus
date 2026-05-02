@@ -23,7 +23,8 @@ export function syncPreloadCommand(): Command {
 
   sync
     .description('Generates .nodulus/preload.js embedding runtime aliases configuration')
-    .action(async () => {
+    .option('--silent', 'Suppress output when preload is already up to date', false)
+    .action(async (options) => {
         const logger = createLogger(defaultLogHandler, 'info', 'alias');
         const cwd = process.cwd();
         
@@ -47,16 +48,24 @@ export function syncPreloadCommand(): Command {
             }
 
             if (isIdentical) {
-                logger.info('Pre-loader configuration is already up to date (no changes).');
-            } else {
-                fs.writeFileSync(preloadPath, newContent, 'utf8');
-                logger.info(`Pre-loader generated successfully at ${pc.cyan('.nodulus/preload.js')}`);
+                if (!options.silent) {
+                    logger.info('Pre-loader is already up to date (no changes).');
+                }
+                // salir silenciosamente
+                return;
             }
 
-            console.log(pc.green('\n✔ Pre-loader sync complete.'));
-            console.log('\nTo use the pre-loader, update your package.json scripts:');
-            console.log(pc.cyan('  "dev": "nodulus dev src/server.ts"'));
-            console.log(pc.cyan('  "start": "node --import ./.nodulus/preload.js src/server.ts"\n'));
+            // Regenerar
+            fs.writeFileSync(preloadPath, newContent, 'utf8');
+            logger.info(`Pre-loader updated at ${pc.cyan('.nodulus/preload.js')}`);
+
+            if (!options.silent) {
+                // Mostrar bloque de next steps solo cuando el usuario corre sync-preload manualmente
+                console.log(pc.green('\n✔ Pre-loader sync complete.'));
+                console.log('\nTo use the pre-loader, update your package.json scripts:');
+                console.log(pc.cyan('  "dev": "nodulus sync-preload --silent && nodulus dev --watch src/app.ts"'));
+                console.log(pc.cyan('  "start": "node --import ./.nodulus/preload.js src/app.ts"\n'));
+            }
 
         } catch (err: any) {
             logger.error(`Failed to sync preload: ${err.message}`);
