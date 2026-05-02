@@ -86,4 +86,12 @@ describe('Preload Generator (preload-generator.ts)', () => {
     expect(originalOutput).not.toEqual(newOutput);
     expect(newOutput).toContain("modulesDir: resolve(__dirname, '../src/api')");
   });
+
+  it('changing nodulus-core version produces different output', () => {
+    const originalOutput = generatePreloadFile(mockConfig, version, fakeCwd);
+    const newOutput = generatePreloadFile(mockConfig, '2.0.0-test', fakeCwd);
+    
+    expect(originalOutput).not.toEqual(newOutput);
+    expect(newOutput).toContain("_version: '2.0.0-test'");
+  });
 });

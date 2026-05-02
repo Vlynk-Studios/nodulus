@@ -496,6 +496,8 @@ The generated file embeds your current alias config and is **idempotent** — ru
 
 > [!IMPORTANT]
 > **Commit `.nodulus/preload.js` to version control.** CI/CD and production environments rely on it being present without needing to run `sync-preload` at deploy time. It is safe to commit — it contains only resolved paths and no secrets.
+> 
+> **Moving the project:** The pre-loader embeds absolute paths to the runtime hook. If you move the project directory on your local machine, the old absolute paths will break. However, because `npm run dev` automatically chains `sync-preload --silent`, the pre-loader will be automatically regenerated and fixed the next time you start your development server.
 
 ---
 
