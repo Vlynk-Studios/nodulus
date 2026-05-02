@@ -76,7 +76,7 @@ This creates `.nodulus/preload.js` — commit it to version control.
 ```json
 {
   "scripts": {
-    "dev":   "nodulus dev src/server.ts",
+    "dev":   "nodulus sync-preload --silent && nodulus dev src/server.ts",
     "start": "node --import ./.nodulus/preload.js src/server.ts"
   }
 }
@@ -488,7 +488,7 @@ npx nodulus sync-preload
 ✔ Pre-loader sync complete.
 
 To use the pre-loader, update your package.json scripts:
-  "dev":   "nodulus dev src/server.ts"
+  "dev":   "nodulus sync-preload --silent && nodulus dev src/server.ts"
   "start": "node --import ./.nodulus/preload.js src/server.ts"
 ```
 
@@ -503,8 +503,10 @@ The generated file embeds your current alias config and is **idempotent** — ru
 
 Starts your application in development mode. Automatically injects `--import ./.nodulus/preload.js` if the file exists, ensuring aliases are available before any module loads.
 
+The expected workflow is to chain this command with `sync-preload` to ensure the pre-loader is always up to date before the server starts:
+
 ```bash
-npx nodulus dev src/server.ts
+npx nodulus sync-preload --silent && npx nodulus dev src/server.ts
 ```
 
 | Option | Description |
@@ -512,7 +514,7 @@ npx nodulus dev src/server.ts
 | `--watch` | Restarts on file changes (passes `--watch` to Node.js) |
 | `--runtime tsx` | Uses `tsx` instead of `node` for TypeScript without a build step |
 
-If `.nodulus/preload.js` does not exist, `nodulus dev` falls back to legacy mode (v1.4.0 behaviour) with a warning.
+If `.nodulus/preload.js` does not exist, `nodulus dev` falls back to legacy mode (v1.4.0 behaviour) with a warning. However, chaining `sync-preload` first guarantees it will be present.
 
 ---
 
