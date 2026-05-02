@@ -73,4 +73,17 @@ describe('Preload Generator (preload-generator.ts)', () => {
     // modulesDir should point to ../src/modules
     expect(output).toContain("modulesDir: resolve(__dirname, '../src/modules')");
   });
+  it('changing modules glob path produces different output with the new path', () => {
+    const originalOutput = generatePreloadFile(mockConfig, version, fakeCwd);
+    
+    const newConfig = {
+      ...mockConfig,
+      modules: 'src/api/*'
+    };
+    
+    const newOutput = generatePreloadFile(newConfig, version, fakeCwd);
+    
+    expect(originalOutput).not.toEqual(newOutput);
+    expect(newOutput).toContain("modulesDir: resolve(__dirname, '../src/api')");
+  });
 });
