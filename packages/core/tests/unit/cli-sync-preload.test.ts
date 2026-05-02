@@ -23,9 +23,9 @@ const makeBaseConfig = (overrides: Record<string, unknown> = {}) => ({
 describe('CLI: sync-preload', () => {
   let tmpDir: string;
 
-  const runCommand = async () => {
+  const runCommand = async (args: string[] = []) => {
     const cmd = syncPreloadCommand();
-    await cmd.parseAsync(['node', 'cli']);
+    await cmd.parseAsync(['node', 'cli', ...args]);
   };
 
   beforeEach(() => {
@@ -143,5 +143,71 @@ describe('CLI: sync-preload', () => {
     expect(contentV2).toContain("'@shared':");
     expect(contentV2).toContain("'@newlib':");
     expect(contentV2).not.toBe(contentV1);
+  });
+
+  it('--silent produces no output when preload is up to date', async () => {
+    // First run: generate the file
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@shared': './src/shared' } }));
+    await runCommand(['--silent']);
+
+    // Capture stdout/stderr
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    // Second run: no changes
+    await runCommand(['--silent']);
+    expect(stdoutSpy).not.toHaveBeenCalled();
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    stdoutSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('--silent prints one line when preload is updated', async () => {
+    // First run with one alias
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@a': './src/a' } }));
+    await runCommand(['--silent']);
+
+    // Second run with a different alias
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@b': './src/b' } }));
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    await runCommand(['--silent']);
+
+    // It should print exactly one line (the info "updated")
+    expect(stdoutSpy).toHaveBeenCalledTimes(1);
+    stdoutSpy.mockRestore();
+  });
+
+  it('without --silent, shows next steps block when regenerating', async () => {
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@a': './src/a' } }));
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    
+    await runCommand([]); // default
+    
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('To use the pre-loader'));
+    consoleSpy.mockRestore();
+  });
+
+  it('exits with code 1 when loadConfig throws (invalid config)', async () => {
+    vi.mocked(loadConfig).mockRejectedValue(new Error('Invalid config: syntax error'));
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: any) => {
+      throw new Error(`process.exit(${code})`);
+    }) as any);
+
+    await expect(runCommand(['--silent'])).rejects.toThrow('process.exit(1)');
+    exitSpy.mockRestore();
+  });
+
+  it('exits with code 1 when nodulus.config.js/ts does not exist', async () => {
+    // Delete the config file created in beforeEach
+    fs.rmSync(path.join(tmpDir, 'nodulus.config.js'));
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: any) => {
+      throw new Error(`process.exit(${code})`);
+    }) as any);
+
+    await expect(runCommand(['--silent'])).rejects.toThrow('process.exit(1)');
+    exitSpy.mockRestore();
   });
 });

@@ -32,8 +32,7 @@ export function devCommand(): Command {
         if (hasPreload) {
             args.push('--import', './.nodulus/preload.js');
         } else {
-            logger.warn('Pre-loader not detected at .nodulus/preload.js. Running in legacy mode (v1.4.0).');
-            logger.warn('It is recommended to run "npx nodulus sync-preload" to enable the pre-loader.');
+            logger.warn('Pre-loader not found. Run: nodulus sync-preload');
         }
 
         args.push(entrypoint);
