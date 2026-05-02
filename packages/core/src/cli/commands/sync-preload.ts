@@ -29,11 +29,23 @@ export function syncPreloadCommand(): Command {
         const cwd = process.cwd();
         
         try {
+            const hasJsConfig = fs.existsSync(path.join(cwd, 'nodulus.config.js'));
+            const hasTsConfig = fs.existsSync(path.join(cwd, 'nodulus.config.ts'));
+            if (!hasJsConfig && !hasTsConfig) {
+                logger.error('Could not load nodulus config. Make sure nodulus.config.js exists in the project root.');
+                process.exit(1);
+            }
+
             const config = await loadConfig();
             
             const nodulusDir = path.join(cwd, '.nodulus');
-            if (!fs.existsSync(nodulusDir)) {
-                fs.mkdirSync(nodulusDir, { recursive: true });
+            try {
+                if (!fs.existsSync(nodulusDir)) {
+                    fs.mkdirSync(nodulusDir, { recursive: true });
+                }
+            } catch (err: any) {
+                logger.error(`Cannot create directory at .nodulus: ${err.message}`);
+                process.exit(1);
             }
 
             const preloadPath = path.join(nodulusDir, 'preload.js');
@@ -56,7 +68,17 @@ export function syncPreloadCommand(): Command {
             }
 
             // Regenerar
-            fs.writeFileSync(preloadPath, newContent, 'utf8');
+            try {
+                fs.writeFileSync(preloadPath, newContent, 'utf8');
+            } catch (err: any) {
+                if (err.code === 'EACCES') {
+                    logger.error('Cannot write to .nodulus/preload.js — permission denied.');
+                } else {
+                    logger.error(`Cannot write to .nodulus/preload.js: ${err.message}`);
+                }
+                process.exit(1);
+            }
+            
             logger.info(`Pre-loader updated at ${pc.cyan('.nodulus/preload.js')}`);
 
             if (!options.silent) {
