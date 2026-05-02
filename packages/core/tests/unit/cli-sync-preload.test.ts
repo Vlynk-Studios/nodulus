@@ -31,6 +31,7 @@ describe('CLI: sync-preload', () => {
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodulus-sync-preload-'));
     fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'test-app', type: 'module' }));
+    fs.writeFileSync(path.join(tmpDir, 'nodulus.config.js'), 'export default {}');
     vi.spyOn(process, 'cwd').mockReturnValue(tmpDir);
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });

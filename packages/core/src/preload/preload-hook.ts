@@ -1,4 +1,4 @@
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
 import type { PreloadConfig } from './index.js';
 import type { ResolveHookContext, NextResolve } from '../aliases/resolver.js';
@@ -29,23 +29,23 @@ export async function resolve(
         const baseTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
         const subPath = specifier.slice(baseAlias.length);
         const resolvedPath = path.resolve(baseTarget, subPath.startsWith('/') ? subPath.slice(1) : subPath);
-        return attemptResolve(pathToFileURL(resolvedPath).href, context, nextResolve);
+        return attemptResolve(pathToFileURL(resolvedPath).href, context, nextResolve, alias);
       }
     } else if (specifier === alias) {
       const exactTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
-      return attemptResolve(pathToFileURL(exactTarget).href, context, nextResolve);
+      return attemptResolve(pathToFileURL(exactTarget).href, context, nextResolve, alias);
     } else if (specifier.startsWith(alias + '/')) {
       const baseTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
       const subPath = specifier.slice(alias.length + 1);
       const resolvedPath = path.resolve(baseTarget, subPath);
-      return attemptResolve(pathToFileURL(resolvedPath).href, context, nextResolve);
+      return attemptResolve(pathToFileURL(resolvedPath).href, context, nextResolve, alias);
     }
   }
 
   return attemptResolve(specifier, context, nextResolve);
 }
 
-async function attemptResolve(specifier: string, context: ResolveHookContext, nextResolve: NextResolve) {
+async function attemptResolve(specifier: string, context: ResolveHookContext, nextResolve: NextResolve, originalAlias?: string) {
   try {
     return await nextResolve(specifier, context);
   } catch (err: any) {
@@ -56,6 +56,17 @@ async function attemptResolve(specifier: string, context: ResolveHookContext, ne
       } catch {
         // Fallback failed, throw original error
       }
+    }
+    if (err?.code === 'ERR_MODULE_NOT_FOUND' && originalAlias) {
+      let displayPath = specifier;
+      if (specifier.startsWith('file://')) {
+        try {
+          displayPath = fileURLToPath(specifier);
+        } catch {
+          // ignore
+        }
+      }
+      err.message = `Cannot resolve alias '${originalAlias}' → ${displayPath} not found. Run: nodulus sync-preload\n\nOriginal error:\n${err.message}`;
     }
     throw err;
   }

@@ -94,7 +94,7 @@ export async function createApp(
       };
       const currentVersion = getPkg().version;
       if (preloadConfig?._version && preloadConfig._version !== currentVersion) {
-          log.warn(`Pre-loader version mismatch. Pre-loader: ${preloadConfig._version}, Core: ${currentVersion}.`, { suggestion: 'Run "npx nodulus sync-preload" to update it.' });
+          log.warn(`Pre-loader version mismatch: preload.js was generated with v${preloadConfig._version} but nodulus-core v${currentVersion} is installed. Run: nodulus sync-preload`);
       }
   }
 
