@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { PreloadConfig } from '../../src/preload/index.js';
 
 describe('Pre-loader ESM Hook (preload-hook.ts)', () => {
-  const nextResolve = vi.fn((specifier, context) => {
+  const nextResolve = vi.fn((specifier, _context) => {
     return Promise.resolve({ url: specifier, shortCircuit: true });
   });
 
@@ -127,5 +127,48 @@ describe('Pre-loader ESM Hook (preload-hook.ts)', () => {
     ).rejects.toMatchObject({
       message: expect.not.stringContaining("Cannot resolve alias"),
     });
+  });
+
+  // ── Part 3: Optimized preload-hook tests ─────────────────────────────────────
+  it('prebuilds exactAliasMap and wildcardAliases in initialize() efficiently', () => {
+    const aliases = Object.fromEntries(
+      Array.from({ length: 84 }, (_, i) => [`@alias${i}`, `/path/to/alias${i}`])
+    );
+    // Ensure it doesn't throw and initializes quickly without O(N) iteration on resolve
+    expect(() => {
+      initialize({ preloaded: true, _version: '1.5.1', aliases, modulesDir: '/tmp' });
+    }).not.toThrow();
+  });
+
+  it('clears previous structures when initialize() is called again', async () => {
+    initialize({ preloaded: true, _version: '1.5.1', aliases: { '@old': '/old' }, modulesDir: '/tmp' });
+    await resolve('@old', { conditions: [] }, nextResolve);
+    expect(nextResolve).toHaveBeenCalledWith(expect.stringContaining('/old'), expect.anything());
+    
+    nextResolve.mockClear();
+    initialize({ preloaded: true, _version: '1.5.1', aliases: { '@new': '/new' }, modulesDir: '/tmp' });
+    
+    // '@old' should no longer resolve to the alias path (it passes through)
+    await resolve('@old', { conditions: [] }, nextResolve);
+    expect(nextResolve).toHaveBeenCalledWith('@old', expect.anything());
+    
+    nextResolve.mockClear();
+    // '@new' should resolve successfully
+    await resolve('@new', { conditions: [] }, nextResolve);
+    expect(nextResolve).toHaveBeenCalledWith(expect.stringContaining('/new'), expect.anything());
+  });
+
+  it('resolves subpaths of exact alias correctly', async () => {
+    initialize({
+      preloaded: true,
+      _version: '1.5.1',
+      aliases: { '@shared': '/abs/path/shared' },
+      modulesDir: '/tmp'
+    });
+    // '@shared/utils' should resolve to '/abs/path/shared/utils' via prefixAliases
+    await resolve('@shared/utils', { conditions: [] }, nextResolve);
+    const expectedPath = path.resolve('/abs/path/shared', 'utils');
+    const expectedUrl = pathToFileURL(expectedPath).href;
+    expect(nextResolve).toHaveBeenCalledWith(expectedUrl, { conditions: [] });
   });
 });

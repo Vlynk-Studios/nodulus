@@ -55,7 +55,7 @@ export const defaultLogHandler: LogHandler = (level, rawMessage, meta) => {
     case 'error': coloredMessage = pc.red(message); break;
   }
 
-  // Format line: [Nodulus] LEVEL  [módulo]    mensaje
+  // Format line: [Nodulus] LEVEL  [module]    message
   const line = `${prefix} ${coloredLabel}  ${coloredModule} ${coloredMessage}`;
   
   if (level === 'warn' || level === 'error') {

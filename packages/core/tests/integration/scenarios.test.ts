@@ -719,4 +719,48 @@ describe("Integration Tests", () => {
       }
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Module File Grouping (Prefix Collisions)
+  // -----------------------------------------------------------------------
+  describe("Module File Grouping (Prefix Collisions)", () => {
+    it("groups files correctly when one module name is a prefix of another", async () => {
+      // Create a scenario where module 'users' and 'users-admin' exist.
+      // If prefix grouping is buggy, a file in 'users-admin' might be wrongly grouped under 'users'.
+      // We test this by importing 'users-admin' from 'users-admin/service.ts'.
+      // If it's grouped under 'users', it will be seen as an undeclared cross-module import from 'users' to 'users-admin'.
+      
+      const loggerHandler = vi.fn();
+
+      await runInTmpApp(
+        {
+          "nodulus.config.js": "export default { strict: false };",
+          "src/modules/users/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('users');
+        `,
+          "src/modules/users-admin/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('users-admin');
+        `,
+          "src/modules/users-admin/service.ts": `
+          // Valid self-import.
+          import { admin } from '@modules/users-admin';
+        `,
+        },
+        async (_, app) => {
+          const result = await createApp(app as any, { logger: loggerHandler });
+          expect(result.modules).toHaveLength(2);
+          
+          // Verify that NO warning was emitted about 'users' importing from 'users-admin'
+          // meaning the service.ts was correctly attributed to 'users-admin'.
+          expect(loggerHandler).not.toHaveBeenCalledWith(
+            "warn",
+            expect.stringContaining('imports from "users-admin" but it is not declared'),
+            expect.anything()
+          );
+        },
+      );
+    });
+  });
 });
