@@ -184,7 +184,9 @@ describe('CLI: sync-preload', () => {
     
     await runCommand([]); // default
     
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('To use the pre-loader'));
+    expect(consoleSpy).toHaveBeenCalledWith('Your package.json scripts should look like this:');
+    // Also assert it includes the generated dev command (defaults to .js in test env)
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"nodulus sync-preload --silent && nodulus dev --watch src/app.js"'));
     consoleSpy.mockRestore();
   });
 

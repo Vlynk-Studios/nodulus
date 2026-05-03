@@ -82,11 +82,17 @@ export function syncPreloadCommand(): Command {
             logger.info(`Pre-loader updated at ${pc.cyan('.nodulus/preload.js')}`);
 
             if (!options.silent) {
+                // Determine extension based on which config file exists.
+                // We default to 'ts' if for some reason neither is found (though loadConfig would have failed).
+                const ext = fs.existsSync(path.join(cwd, 'nodulus.config.ts')) ? 'ts' : 'js';
+
                 // Mostrar bloque de next steps solo cuando el usuario corre sync-preload manualmente
-                console.log(pc.green('\n✔ Pre-loader sync complete.'));
-                console.log('\nTo use the pre-loader, update your package.json scripts:');
-                console.log(pc.cyan('  "dev": "nodulus sync-preload --silent && nodulus dev --watch src/app.ts"'));
-                console.log(pc.cyan('  "start": "node --import ./.nodulus/preload.js src/app.ts"\n'));
+                console.log(pc.green('\n✔ Pre-loader sync complete.\n'));
+                console.log('Your package.json scripts should look like this:');
+                console.log(pc.cyan(`  "dev":   "nodulus sync-preload --silent && nodulus dev --watch src/app.${ext}"`));
+                console.log(pc.cyan(`  "start": "node --import ./.nodulus/preload.js src/app.${ext}"\n`));
+                console.log('The pre-loader runs automatically on every "npm run dev".');
+                console.log('To update manually: nodulus sync-preload\n');
             }
 
         } catch (err: any) {
