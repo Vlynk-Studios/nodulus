@@ -79,8 +79,8 @@ export function extractIdentifierCall(
     // Ignore acorn parse errors for now to allow fallback to operate
   }
 
-  // Fallback: Acorn no parsea TypeScript nativamente (interfaces, tipos, tipados fuertes).
-  // Se documenta de manera explícita y se centraliza aquí el soporte Regex como fallback.
+  // Fallback: Acorn does not parse TypeScript natively (interfaces, types, strong typings).
+  // Regex support is explicitly documented and centralized here as a fallback.
   if (!found && code) {
     const regex = new RegExp(`${calleeName}\\s*\\(\\s*['"]([^'"]+)['"]`, "g");
     let match;

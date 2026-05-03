@@ -86,7 +86,7 @@ export function syncPreloadCommand(): Command {
                 // We default to 'ts' if for some reason neither is found (though loadConfig would have failed).
                 const ext = fs.existsSync(path.join(cwd, 'nodulus.config.ts')) ? 'ts' : 'js';
 
-                // Mostrar bloque de next steps solo cuando el usuario corre sync-preload manualmente
+                // Show the next steps block only when the user runs sync-preload manually
                 console.log(pc.green('\n✔ Pre-loader sync complete.\n'));
                 console.log('Your package.json scripts should look like this:');
                 console.log(pc.cyan(`  "dev":   "nodulus sync-preload --silent && nodulus dev --watch src/app.${ext}"`));
