@@ -210,4 +210,36 @@ describe('CLI: sync-preload', () => {
     await expect(runCommand(['--silent'])).rejects.toThrow('process.exit(1)');
     exitSpy.mockRestore();
   });
+
+  // ── Gap 1: exit code 0 when --silent and preload is already up to date ───────
+  it('exit code is 0 (process.exit not called) when --silent and preload is up to date', async () => {
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@shared': './src/shared' } }));
+    // First run: generate the file
+    await runCommand(['--silent']);
+
+    // Second run: no changes — process.exit should never be called
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: any) => {
+      throw new Error(`process.exit(${code})`);
+    }) as any);
+
+    await expect(runCommand(['--silent'])).resolves.not.toThrow();
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    exitSpy.mockRestore();
+  });
+
+  // ── Section 4.2: change detection tests ─────────────────────────────────────
+  it('updates preload when modules glob changes (src/modules/* → src/api/*)', async () => {
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ modules: 'src/modules/*' }));
+    await runCommand();
+    const preloadPath = path.join(tmpDir, '.nodulus', 'preload.js');
+    const v1 = fs.readFileSync(preloadPath, 'utf8');
+
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ modules: 'src/api/*' }));
+    await runCommand();
+    const v2 = fs.readFileSync(preloadPath, 'utf8');
+
+    expect(v1).not.toBe(v2);
+    expect(v2).toContain('src/api');
+  });
 });
