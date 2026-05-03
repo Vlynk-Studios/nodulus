@@ -5,8 +5,40 @@ import type { ResolveHookContext, NextResolve } from '../aliases/resolver.js';
 
 let config: PreloadConfig | null = null;
 
+// Estructuras preconstruidas en initialize() — nunca se recalculan
+const exactAliasMap: Map<string, string> = new Map();
+let wildcardAliases: Array<{ base: string; target: string }> = [];
+let prefixAliases: Array<{ prefix: string; target: string }> = [];
+
 export function initialize(data: PreloadConfig) {
   config = data;
+
+  // Limpiar estructuras anteriores
+  exactAliasMap.clear();
+  wildcardAliases = [];
+  prefixAliases = [];
+
+  // Ordenar aliases por longitud descendente (más específico primero)
+  const sortedEntries = Object.entries(data.aliases)
+    .sort(([a], [b]) => b.length - a.length);
+
+  for (const [alias, target] of sortedEntries) {
+    if (alias.endsWith('/*')) {
+      // @modules/* → wildcard
+      wildcardAliases.push({
+        base: alias.slice(0, -2),
+        target: target.endsWith('/*') ? target.slice(0, -2) : target
+      });
+    } else {
+      // @config → exact match
+      exactAliasMap.set(alias, target);
+      // @shared → también puede tener subpaths (@shared/utils)
+      prefixAliases.push({
+        prefix: alias + '/',
+        target: target.endsWith('/*') ? target.slice(0, -2) : target
+      });
+    }
+  }
 }
 
 export async function resolve(
@@ -18,27 +50,45 @@ export async function resolve(
     return attemptResolve(specifier, context, nextResolve);
   }
 
-  const aliases = config.aliases;
-  const sortedAliases = Object.keys(aliases).sort((a, b) => b.length - a.length);
+  // 1. Exact match — O(1)
+  const exactTarget = exactAliasMap.get(specifier);
+  if (exactTarget) {
+    return attemptResolve(
+      pathToFileURL(exactTarget).href,
+      context,
+      nextResolve,
+      specifier
+    );
+  }
 
-  for (const alias of sortedAliases) {
-    const target = aliases[alias];
-    if (alias.endsWith('/*')) {
-      const baseAlias = alias.slice(0, -2);
-      if (specifier === baseAlias || specifier.startsWith(baseAlias + '/')) {
-        const baseTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
-        const subPath = specifier.slice(baseAlias.length);
-        const resolvedPath = path.resolve(baseTarget, subPath.startsWith('/') ? subPath.slice(1) : subPath);
-        return attemptResolve(pathToFileURL(resolvedPath).href, context, nextResolve, alias);
-      }
-    } else if (specifier === alias) {
-      const exactTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
-      return attemptResolve(pathToFileURL(exactTarget).href, context, nextResolve, alias);
-    } else if (specifier.startsWith(alias + '/')) {
-      const baseTarget = target.endsWith('/*') ? target.slice(0, -2) : target;
-      const subPath = specifier.slice(alias.length + 1);
-      const resolvedPath = path.resolve(baseTarget, subPath);
-      return attemptResolve(pathToFileURL(resolvedPath).href, context, nextResolve, alias);
+  // 2. Wildcard aliases — @modules/* — O(k) donde k = número de wildcards (pequeño)
+  for (const { base, target } of wildcardAliases) {
+    if (specifier === base || specifier.startsWith(base + '/')) {
+      const subPath = specifier.slice(base.length);
+      const resolvedPath = path.resolve(
+        target,
+        subPath.startsWith('/') ? subPath.slice(1) : subPath
+      );
+      return attemptResolve(
+        pathToFileURL(resolvedPath).href,
+        context,
+        nextResolve,
+        base + '/*'
+      );
+    }
+  }
+
+  // 3. Prefix aliases — @shared/utils — O(k) donde k = número de aliases exactos
+  for (const { prefix, target } of prefixAliases) {
+    if (specifier.startsWith(prefix)) {
+      const subPath = specifier.slice(prefix.length);
+      const resolvedPath = path.resolve(target, subPath);
+      return attemptResolve(
+        pathToFileURL(resolvedPath).href,
+        context,
+        nextResolve,
+        prefix.slice(0, -1) // alias sin el trailing '/'
+      );
     }
   }
 
