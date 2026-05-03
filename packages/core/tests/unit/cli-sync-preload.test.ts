@@ -242,4 +242,23 @@ describe('CLI: sync-preload', () => {
     expect(v1).not.toBe(v2);
     expect(v2).toContain('src/api');
   });
+
+  // ── Section 4.3: improved error messages ─────────────────────────────────────
+  it('exits with code 1 and calls process.exit(1) when config fails to load', async () => {
+    vi.mocked(loadConfig).mockRejectedValue(new Error('Config file not found'));
+
+    // Track the exact code passed to process.exit without throwing
+    // so we can assert toHaveBeenCalledWith(1) directly.
+    let capturedCode: number | undefined;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
+      capturedCode = code;
+      throw new Error('exit'); // still abort execution to stop the command
+    }) as any);
+
+    await expect(runCommand()).rejects.toThrow('exit');
+    expect(capturedCode).toBe(1);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+  });
 });
