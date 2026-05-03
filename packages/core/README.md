@@ -49,7 +49,7 @@ npm install express
 
 ---
 
-## Getting Started with the Pre-loader _(v1.5.0+)_
+## The Pre-loader System _(v1.5.0+)_
 
 By default, the Node.js ESM hook activates **inside** `createApp()`. This means aliases like `@config/database` are **not** available in static top-level imports in your server entry file:
 
@@ -61,9 +61,13 @@ const app = express()
 await createApp(app)
 ```
 
-The **runtime pre-loader** solves this by registering the ESM hook before your code runs.
+The **runtime pre-loader** solves this by registering the alias resolution ESM hook *before* your code runs.
 
-### Setup (one-time)
+### Automatic setup (`create-nodulus-app`)
+
+If you generated your project using `npx create-nodulus-app`, the pre-loader is **configured automatically**. You don't need to do anything. Your `npm run dev` script automatically syncs the pre-loader before starting the server.
+
+### Manual setup (existing projects)
 
 **1. Generate the pre-loader file:**
 ```bash
@@ -82,6 +86,8 @@ This creates `.nodulus/preload.js` — commit it to version control.
 }
 ```
 
+> **The `--silent` flag:** When chained in your `dev` script, `--silent` suppresses output if the pre-loader is already up to date, keeping your terminal clean on every startup. It only prints a message if it actually regenerated the file.
+
 **3. Aliases now work everywhere:**
 ```ts
 // ✅ Works with the pre-loader active
@@ -93,10 +99,17 @@ const { runtime } = await createApp(app)
 console.log(runtime.preloaderActive) // true
 ```
 
-**Re-run `sync-preload` whenever you add or rename aliases.** The command is idempotent — if nothing changed, the file is not rewritten.
+### When to run `sync-preload` manually
 
-> [!NOTE]
-> **Backward compatible.** Without the pre-loader, aliases still work inside modules discovered by `createApp()`. Only top-level imports in your entry file require the pre-loader.
+Because `npm run dev` automatically chains `sync-preload --silent`, the pre-loader is usually kept in sync automatically. However, you need to run `npx nodulus sync-preload` manually when:
+- You add, remove, or change aliases in `nodulus.config.ts` while the server is NOT running.
+- You move your project to a different directory on your local machine (the pre-loader embeds absolute paths to the runtime hook).
+- In CI/CD pipelines to ensure the file is up to date (though committing `.nodulus/preload.js` is the recommended approach).
+
+### Legacy Mode (v1.4.0 compatibility)
+
+If `.nodulus/preload.js` is not found, Nodulus falls back to **Legacy Mode**. 
+In this mode, aliases still work perfectly **inside** modules discovered by `createApp()` (exactly as they did in v1.4.0). However, top-level static imports in your entry file (`server.ts`) will fail to resolve aliases. Nodulus will emit a warning during bootstrap if it detects Legacy Mode, prompting you to run `nodulus sync-preload`.
 
 ---
 
