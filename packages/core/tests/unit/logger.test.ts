@@ -45,9 +45,9 @@ describe('Logger Utility', () => {
       expect(output).toContain('database connected\n');
     });
 
-    // ── 3.1 · Test de alineación ──────────────────────────────────────────
+    // ── 3.1 · Alignment test ──────────────────────────────────────────
 
-    it('alignment: output with _module contains [módulo] padded to 10 chars', () => {
+    it('alignment: output with _module contains [module] padded to 10 chars', () => {
       defaultLogHandler('info', 'ready', { _module: 'boot' });
       const output = stdoutSpy.mock.calls[0][0] as string;
 
@@ -57,7 +57,7 @@ describe('Logger Utility', () => {
       expect(output).toMatch(/\[boot\]\s{4}/);
     });
 
-    // ── 3.1 · Test de ausencia de módulo ─────────────────────────────────
+    // ── 3.1 · Module absence test ─────────────────────────────────
 
     it('absence of module: output is valid and contains 10-space column placeholder', () => {
       defaultLogHandler('info', 'no module here');
@@ -70,7 +70,7 @@ describe('Logger Utility', () => {
       expect(output).toContain('no module here\n');
     });
 
-    // ── 3.1 · Test de niveles con color (stderr vs stdout) ────────────────
+    // ── 3.1 · Color levels test (stderr vs stdout) ────────────────
 
     it('should write warn/error to stderr', () => {
       defaultLogHandler('warn', 'low disk space');
@@ -134,7 +134,7 @@ describe('Logger Utility', () => {
       expect(resolveLogLevel()).toBe('info');
     });
 
-    // ── 3.2 · Test de NODULUS_LOG_LEVEL ──────────────────────────────────
+    // ── 3.2 · NODULUS_LOG_LEVEL test ──────────────────────────────────
 
     it('NODULUS_LOG_LEVEL=warn (alone) → returns "warn"', () => {
       process.env.NODULUS_LOG_LEVEL = 'warn';
@@ -146,7 +146,7 @@ describe('Logger Utility', () => {
       expect(resolveLogLevel()).toBe('debug');
     });
 
-    // ── 3.2 · Test de prioridad: explicit gana sobre env ─────────────────
+    // ── 3.2 · Priority test: explicit wins over env ────────────────
 
     it('priority: NODULUS_LOG_LEVEL=warn + explicit="error" → returns "error"', () => {
       process.env.NODULUS_LOG_LEVEL = 'warn';
@@ -162,7 +162,7 @@ describe('Logger Utility', () => {
   // ── 3.3 ─ Public API for user applications ───────────────────────────────
 
   describe('createLogger (string overload — public API)', () => {
-    // ── 3.3 · Test de sobrecarga con string ──────────────────────────────
+    // ── 3.3 · String overload test ──────────────────────────────
 
     it('createLogger("my-app") returns a functional Logger', () => {
       const log = createLogger('my-app');
@@ -173,7 +173,7 @@ describe('Logger Utility', () => {
       expect(typeof log.info).toBe('function');
     });
 
-    // ── 3.3 · Test de formato ─────────────────────────────────────────────
+    // ── 3.3 · Format test ─────────────────────────────────────────────
 
     it('output of createLogger("my-app").info("hello") contains [my-app] and not [Nodulus]', () => {
       const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -190,7 +190,7 @@ describe('Logger Utility', () => {
       }
     });
 
-    // ── 3.3 · Test de nivel ───────────────────────────────────────────────
+    // ── 3.3 · Level test ───────────────────────────────────────────────
 
     it('createLogger("my-app").debug with NODULUS_LOG_LEVEL=info → emits nothing', () => {
       const originalLevel = process.env.NODULUS_LOG_LEVEL;

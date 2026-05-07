@@ -23,16 +23,29 @@ export function syncPreloadCommand(): Command {
 
   sync
     .description('Generates .nodulus/preload.js embedding runtime aliases configuration')
-    .action(async () => {
+    .option('--silent', 'Suppress output when preload is already up to date', false)
+    .action(async (options) => {
         const logger = createLogger(defaultLogHandler, 'info', 'alias');
         const cwd = process.cwd();
         
         try {
+            const hasJsConfig = fs.existsSync(path.join(cwd, 'nodulus.config.js'));
+            const hasTsConfig = fs.existsSync(path.join(cwd, 'nodulus.config.ts'));
+            if (!hasJsConfig && !hasTsConfig) {
+                logger.error('Could not load nodulus config. Make sure nodulus.config.js exists in the project root.');
+                process.exit(1);
+            }
+
             const config = await loadConfig();
             
             const nodulusDir = path.join(cwd, '.nodulus');
-            if (!fs.existsSync(nodulusDir)) {
-                fs.mkdirSync(nodulusDir, { recursive: true });
+            try {
+                if (!fs.existsSync(nodulusDir)) {
+                    fs.mkdirSync(nodulusDir, { recursive: true });
+                }
+            } catch (err: any) {
+                logger.error(`Cannot create directory at .nodulus: ${err.message}`);
+                process.exit(1);
             }
 
             const preloadPath = path.join(nodulusDir, 'preload.js');
@@ -47,16 +60,40 @@ export function syncPreloadCommand(): Command {
             }
 
             if (isIdentical) {
-                logger.info('Pre-loader configuration is already up to date (no changes).');
-            } else {
-                fs.writeFileSync(preloadPath, newContent, 'utf8');
-                logger.info(`Pre-loader generated successfully at ${pc.cyan('.nodulus/preload.js')}`);
+                if (!options.silent) {
+                    logger.info('Pre-loader is already up to date (no changes).');
+                }
+                // salir silenciosamente
+                return;
             }
 
-            console.log(pc.green('\n✔ Pre-loader sync complete.'));
-            console.log('\nTo use the pre-loader, update your package.json scripts:');
-            console.log(pc.cyan('  "dev": "nodulus dev src/server.ts"'));
-            console.log(pc.cyan('  "start": "node --import ./.nodulus/preload.js src/server.ts"\n'));
+            // Regenerar
+            try {
+                fs.writeFileSync(preloadPath, newContent, 'utf8');
+            } catch (err: any) {
+                if (err.code === 'EACCES') {
+                    logger.error('Cannot write to .nodulus/preload.js — permission denied.');
+                } else {
+                    logger.error(`Cannot write to .nodulus/preload.js: ${err.message}`);
+                }
+                process.exit(1);
+            }
+            
+            logger.info(`Pre-loader updated at ${pc.cyan('.nodulus/preload.js')}`);
+
+            if (!options.silent) {
+                // Determine extension based on which config file exists.
+                // We default to 'ts' if for some reason neither is found (though loadConfig would have failed).
+                const ext = fs.existsSync(path.join(cwd, 'nodulus.config.ts')) ? 'ts' : 'js';
+
+                // Show the next steps block only when the user runs sync-preload manually
+                console.log(pc.green('\n✔ Pre-loader sync complete.\n'));
+                console.log('Your package.json scripts should look like this:');
+                console.log(pc.cyan(`  "dev":   "nodulus sync-preload --silent && nodulus dev --watch src/app.${ext}"`));
+                console.log(pc.cyan(`  "start": "node --import ./.nodulus/preload.js src/app.${ext}"\n`));
+                console.log('The pre-loader runs automatically on every "npm run dev".');
+                console.log('To update manually: nodulus sync-preload\n');
+            }
 
         } catch (err: any) {
             logger.error(`Failed to sync preload: ${err.message}`);
