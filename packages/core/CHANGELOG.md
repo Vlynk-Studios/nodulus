@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-05-07
+
+### Added
+- **Regression Test Suite**: Comprehensive integration tests in `scenarios.test.ts` to prevent regressions in the dependency validation pipeline and module bootstrapping.
+
+### Changed
+- **Optimized Module Scanning**: Refactored the file scanning logic to use a single, consolidated root-level glob instead of per-module globs, significantly improving bootstrap performance in large projects.
+- **Improved Import Detection**: Refined Step 5.5 of the bootstrap pipeline to ensure undeclared cross-module imports are reliably detected even when module names share common prefixes.
+
 ## [1.5.0] - 2026-05-01
 
 > **Runtime Pre-loader:** Solves ESM import timing — aliases are now available in top-level `import` statements of your server entry file, not just inside dynamically-loaded modules.

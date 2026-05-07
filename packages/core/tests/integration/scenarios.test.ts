@@ -762,5 +762,165 @@ describe("Integration Tests", () => {
         },
       );
     });
+
+    it("throws UNDECLARED_IMPORT in strict mode when prefix collision mismatch would cause false attribution", async () => {
+      // §3.2 — Regression: In strict mode, a file in 'users-admin' that references 'orders'
+      // must only produce an error if 'users-admin' itself fails to declare 'orders'.
+      // This test verifies that the strict-mode path exercises the correct module attribution
+      // and does NOT misattribute the file to 'users'.
+      await runInTmpApp(
+        {
+          "nodulus.config.js": "export default { strict: true };",
+          "src/modules/users/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('users');
+        `,
+          "src/modules/users-admin/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('users-admin');
+        `,
+          "src/modules/orders/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('orders', { exports: ['OrderService'] });
+          export class OrderService {}
+        `,
+          // This file belongs to users-admin, uses orders without declaring it.
+          // If grouping is buggy and this file lands under 'users', the error would say
+          // "users imports from orders" — the test ensures it says "users-admin".
+          "src/modules/users-admin/service.ts": `
+          import { OrderService } from '@modules/orders';
+        `,
+        },
+        async (_, app) => {
+          const err = await createApp(app as any).catch((e) => e);
+          expect(err).toBeInstanceOf(NodulusError);
+          expect((err as NodulusError).code).toBe("UNDECLARED_IMPORT");
+          // The error must reference 'users-admin', not 'users'.
+          expect((err as NodulusError).message).toContain("users-admin");
+          expect((err as NodulusError).message).not.toMatch(/^Module "users" imports/);
+        },
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // §3.2 — Consolidated Glob Regression (Step 5.5)
+  // These tests verify that the internal refactor from per-module globs to a
+  // single root-level glob + in-memory grouping did NOT alter the observable
+  // behaviour of Step 5.5 (undeclared cross-module import detection).
+  // -----------------------------------------------------------------------
+  describe("Consolidated Glob Regression — Step 5.5 behaviour", () => {
+    it("detects undeclared cross-module imports in non-strict mode after the consolidated glob refactor", async () => {
+      // §3.2 / §5.5 regression:
+      // Module 'payments' uses '@modules/users' in its service file but does NOT
+      // declare 'users' in its imports[]. The consolidated glob must still surface
+      // this as a WARN (non-strict) — same as before the refactor.
+      const loggerHandler = vi.fn();
+
+      await runInTmpApp(
+        {
+          "nodulus.config.js": "export default { strict: false };",
+          "src/modules/users/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('users', { exports: ['UserService'] });
+          export class UserService {}
+        `,
+          "src/modules/payments/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('payments');
+        `,
+          // payments/service.ts imports from users but 'users' is NOT in payments.imports[]
+          "src/modules/payments/service.ts": `
+          import { UserService } from '@modules/users';
+        `,
+        },
+        async (_, app) => {
+          const result = await createApp(app as any, { logger: loggerHandler });
+
+          // Bootstrap must succeed (non-strict)
+          expect(result.modules).toHaveLength(2);
+
+          // Step 5.5 must have fired a WARN for the undeclared import
+          expect(loggerHandler).toHaveBeenCalledWith(
+            "warn",
+            expect.stringContaining(
+              'Module "payments" imports from "users" but it is not declared in imports[].',
+            ),
+            expect.objectContaining({
+              _module: "module",
+              target: "users",
+            }),
+          );
+        },
+      );
+    });
+
+    it("throws UNDECLARED_IMPORT in strict mode even with the consolidated glob (Step 5.5 regression)", async () => {
+      // §3.2 / §5.5 strict regression:
+      // Same undeclared cross-module import scenario, but with strict: true.
+      // The consolidated glob must still cause createApp() to reject with UNDECLARED_IMPORT.
+      await runInTmpApp(
+        {
+          "nodulus.config.js": "export default { strict: true };",
+          "src/modules/catalog/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('catalog', { exports: ['CatalogService'] });
+          export class CatalogService {}
+        `,
+          "src/modules/checkout/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('checkout');
+        `,
+          // checkout/handler.ts secretly uses catalog without declaring it
+          "src/modules/checkout/handler.ts": `
+          import { CatalogService } from '@modules/catalog';
+        `,
+        },
+        async (_, app) => {
+          await expect(createApp(app as any)).rejects.toMatchObject({
+            code: "UNDECLARED_IMPORT",
+          });
+        },
+      );
+    });
+
+    it("does NOT warn about cross-module imports that are correctly declared in imports[] (no false positives)", async () => {
+      // §3.2 negative case: when 'notifications' correctly declares 'users' in imports[],
+      // and its service.ts references @modules/users, the consolidated glob must NOT fire
+      // any UNDECLARED_IMPORT warning. Validates there are no false positives.
+      const loggerHandler = vi.fn();
+
+      await runInTmpApp(
+        {
+          "nodulus.config.js": "export default { strict: false };",
+          "src/modules/users/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('users', { exports: ['UserService'] });
+          export class UserService {}
+        `,
+          "src/modules/notifications/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('notifications', { imports: ['users'] });
+        `,
+          // This import is legitimately declared — must produce NO warning
+          "src/modules/notifications/mailer.ts": `
+          import { UserService } from '@modules/users';
+        `,
+        },
+        async (_, app) => {
+          const result = await createApp(app as any, { logger: loggerHandler });
+          expect(result.modules).toHaveLength(2);
+
+          // No UNDECLARED_IMPORT warning must be emitted
+          const undeclaredWarns = loggerHandler.mock.calls.filter(
+            (call) =>
+              call[0] === "warn" &&
+              typeof call[1] === "string" &&
+              call[1].includes("but it is not declared in imports[]"),
+          );
+          expect(undeclaredWarns).toHaveLength(0);
+        },
+      );
+    });
   });
 });
