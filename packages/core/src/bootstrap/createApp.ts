@@ -94,7 +94,7 @@ export async function createApp(
       };
       const currentVersion = getPkg().version;
       if (preloadConfig?._version && preloadConfig._version !== currentVersion) {
-          log.warn(`Pre-loader version mismatch. Pre-loader: ${preloadConfig._version}, Core: ${currentVersion}.`, { suggestion: 'Run "npx nodulus sync-preload" to update it.' });
+          log.warn(`Pre-loader version mismatch: preload.js was generated with v${preloadConfig._version} but nodulus-core v${currentVersion} is installed. Run: nodulus sync-preload`);
       }
   }
 
@@ -317,15 +317,41 @@ export async function createApp(
   }
 
   // Step 5.5 — Detect undeclared cross-module imports
+  // Get the modules root directory from the config glob
+  const modulesRoot = config.modules.split('*')[0].replace(/\/$/, '');
+
+  // Single I/O call for all source files
+  const allSourceFiles = await fg(`${modulesRoot}/**/*.{ts,js,mts,mjs}`, {
+    absolute: true,
+    cwd: process.cwd(),
+    ignore: ['**/*.test.*', '**/*.spec.*', '**/*.d.ts', '**/index.*']
+  });
+
+  // Build a Map of module -> source files
+  const filesByModule = new Map<string, string[]>();
+  
+  for (const mod of allModules) {
+    filesByModule.set(mod.name, []);
+  }
+  
+  for (const file of allSourceFiles) {
+    // Determine which module this file belongs to
+    for (const mod of allModules) {
+      const rawMod = registry.getRawModule(mod.name);
+      if (!rawMod) continue;
+      if (file.startsWith(rawMod.path + path.sep) || file.startsWith(rawMod.path + '/')) {
+        filesByModule.get(mod.name)?.push(file);
+        break;
+      }
+    }
+  }
+
   for (const registeredMod of allModules) {
     const rawMod = registry.getRawModule(registeredMod.name);
     if (!rawMod) continue;
 
-    const sourceFiles = await fg('**/*.{ts,js,mts,mjs}', {
-      cwd: rawMod.path,
-      absolute: true,
-      ignore: ['**/*.test.*', '**/*.spec.*', '**/*.d.ts', 'index.*']
-    });
+    // Use already grouped files — no additional I/O
+    const sourceFiles = filesByModule.get(registeredMod.name) ?? [];
 
     const usedImports = new Set<string>();
 
@@ -383,16 +409,36 @@ export async function createApp(
   }
 
   // Step 6 — Discover controllers
+  // Reuse allSourceFiles but including index.* (controllers can be index files of subfolders, but not the module itself)
+  const allControllerFiles = await fg(`${modulesRoot}/**/*.{ts,js,mts,mjs,cjs}`, {
+    absolute: true,
+    cwd: process.cwd(),
+    ignore: ['**/*.types.*', '**/*.d.ts', '**/*.spec.*', '**/*.test.*']
+  });
+
+  const controllerFilesByModule = new Map<string, string[]>();
+  for (const mod of allModules) {
+    controllerFilesByModule.set(mod.name, []);
+  }
+  
+  for (const file of allControllerFiles) {
+    for (const mod of allModules) {
+      const rawMod = registry.getRawModule(mod.name);
+      if (!rawMod) continue;
+      if (file.startsWith(rawMod.path + path.sep) || file.startsWith(rawMod.path + '/')) {
+        // Exclude the module's main index file
+        if (file === rawMod.indexPath) continue;
+        controllerFilesByModule.get(mod.name)?.push(file);
+        break;
+      }
+    }
+  }
+
   for (const mod of allModules) {
     const rawMod = registry.getRawModule(mod.name);
     if (!rawMod) continue;
 
-    const files = await fg('**/*.{ts,js,mts,mjs,cjs}', {
-      cwd: mod.path,
-      absolute: true,
-      ignore: ['**/*.types.*', '**/*.d.ts', '**/*.spec.*', '**/*.test.*', 'index.*']
-    });
-
+    const files = controllerFilesByModule.get(mod.name) ?? [];
     files.sort();
 
     for (let file of files) {

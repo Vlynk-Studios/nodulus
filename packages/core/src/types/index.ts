@@ -343,14 +343,14 @@ export interface GetAliasesOptions {
 }
 
 export interface WatcherOptions {
-  /** Paths o globs a observar. Acepta string o array de strings. */
+  /** Paths or globs to watch. Accepts string or array of strings. */
   paths: string | string[];
-  /** Globs o funciones a ignorar. Por defecto ignora node_modules y .git */
+  /** Globs or functions to ignore. Ignores node_modules and .git by default. */
   ignored?: string | string[] | ((path: string) => boolean);
-  /** Debounce en ms antes de reiniciar. Default: 300 */
+  /** Debounce in ms before restarting. Default: 300 */
   debounceMs?: number;
-  /** Callback a ejecutar cuando se detecta un cambio. Recibe el path del archivo modificado. */
+  /** Callback to execute when a change is detected. Receives the path of the modified file. */
   onRestart: (changedPath: string) => void | Promise<void>;
-  /** Instancia del logger de Nodulus. */
-  logger: Logger; // referencia al Logger interno existente
+  /** Nodulus logger instance. */
+  logger: Logger; // reference to the existing internal Logger
 }

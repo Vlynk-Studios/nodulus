@@ -1,7 +1,7 @@
 # Security Policy
 
 **Package:** `@vlynk-studios/nodulus-core`
-**Current Version:** 1.4.0
+**Current Version:** 1.5.1
 **Maintained by:** Vlynk Studios & Keiver-dev
 **Repository:** https://github.com/Vlynk-Studios/nodulus-core
 
@@ -13,9 +13,9 @@ Only the latest stable release receives security patches. Older minor versions a
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.4.x   | ✅ Yes (current)   |
-| 1.3.x   | ⚠️ Critical only   |
-| < 1.3   | ❌ No              |
+| 1.5.x   | ✅ Yes (current)   |
+| 1.4.x   | ⚠️ Critical only   |
+| < 1.4   | ❌ No              |
 
 ---
 

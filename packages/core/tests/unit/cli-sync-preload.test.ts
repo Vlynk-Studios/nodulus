@@ -23,14 +23,15 @@ const makeBaseConfig = (overrides: Record<string, unknown> = {}) => ({
 describe('CLI: sync-preload', () => {
   let tmpDir: string;
 
-  const runCommand = async () => {
+  const runCommand = async (args: string[] = []) => {
     const cmd = syncPreloadCommand();
-    await cmd.parseAsync(['node', 'cli']);
+    await cmd.parseAsync(['node', 'cli', ...args]);
   };
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodulus-sync-preload-'));
     fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'test-app', type: 'module' }));
+    fs.writeFileSync(path.join(tmpDir, 'nodulus.config.js'), 'export default {}');
     vi.spyOn(process, 'cwd').mockReturnValue(tmpDir);
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
@@ -142,5 +143,124 @@ describe('CLI: sync-preload', () => {
     expect(contentV2).toContain("'@shared':");
     expect(contentV2).toContain("'@newlib':");
     expect(contentV2).not.toBe(contentV1);
+  });
+
+  it('--silent produces no output when preload is up to date', async () => {
+    // First run: generate the file
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@shared': './src/shared' } }));
+    await runCommand(['--silent']);
+
+    // Capture stdout/stderr
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    // Second run: no changes
+    await runCommand(['--silent']);
+    expect(stdoutSpy).not.toHaveBeenCalled();
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    stdoutSpy.mockRestore();
+    consoleSpy.mockRestore();
+  });
+
+  it('--silent prints one line when preload is updated', async () => {
+    // First run with one alias
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@a': './src/a' } }));
+    await runCommand(['--silent']);
+
+    // Second run with a different alias
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@b': './src/b' } }));
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    await runCommand(['--silent']);
+
+    // It should print exactly one line (the info "updated")
+    expect(stdoutSpy).toHaveBeenCalledTimes(1);
+    stdoutSpy.mockRestore();
+  });
+
+  it('without --silent, shows next steps block when regenerating', async () => {
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@a': './src/a' } }));
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    
+    await runCommand([]); // default
+    
+    expect(consoleSpy).toHaveBeenCalledWith('Your package.json scripts should look like this:');
+    // Also assert it includes the generated dev command (defaults to .js in test env)
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"nodulus sync-preload --silent && nodulus dev --watch src/app.js"'));
+    consoleSpy.mockRestore();
+  });
+
+  it('exits with code 1 when loadConfig throws (invalid config)', async () => {
+    vi.mocked(loadConfig).mockRejectedValue(new Error('Invalid config: syntax error'));
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: any) => {
+      throw new Error(`process.exit(${code})`);
+    }) as any);
+
+    await expect(runCommand(['--silent'])).rejects.toThrow('process.exit(1)');
+    exitSpy.mockRestore();
+  });
+
+  it('exits with code 1 when nodulus.config.js/ts does not exist', async () => {
+    // Delete the config file created in beforeEach
+    fs.rmSync(path.join(tmpDir, 'nodulus.config.js'));
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: any) => {
+      throw new Error(`process.exit(${code})`);
+    }) as any);
+
+    await expect(runCommand(['--silent'])).rejects.toThrow('process.exit(1)');
+    exitSpy.mockRestore();
+  });
+
+  // ── Gap 1: exit code 0 when --silent and preload is already up to date ───────
+  it('exit code is 0 (process.exit not called) when --silent and preload is up to date', async () => {
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@shared': './src/shared' } }));
+    // First run: generate the file
+    await runCommand(['--silent']);
+
+    // Second run: no changes — process.exit should never be called
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: any) => {
+      throw new Error(`process.exit(${code})`);
+    }) as any);
+
+    await expect(runCommand(['--silent'])).resolves.not.toThrow();
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    exitSpy.mockRestore();
+  });
+
+  // ── Section 4.2: change detection tests ─────────────────────────────────────
+  it('updates preload when modules glob changes (src/modules/* → src/api/*)', async () => {
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ modules: 'src/modules/*' }));
+    await runCommand();
+    const preloadPath = path.join(tmpDir, '.nodulus', 'preload.js');
+    const v1 = fs.readFileSync(preloadPath, 'utf8');
+
+    vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ modules: 'src/api/*' }));
+    await runCommand();
+    const v2 = fs.readFileSync(preloadPath, 'utf8');
+
+    expect(v1).not.toBe(v2);
+    expect(v2).toContain('src/api');
+  });
+
+  // ── Section 4.3: improved error messages ─────────────────────────────────────
+  it('exits with code 1 and calls process.exit(1) when config fails to load', async () => {
+    vi.mocked(loadConfig).mockRejectedValue(new Error('Config file not found'));
+
+    // Track the exact code passed to process.exit without throwing
+    // so we can assert toHaveBeenCalledWith(1) directly.
+    let capturedCode: number | undefined;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
+      capturedCode = code;
+      throw new Error('exit'); // still abort execution to stop the command
+    }) as any);
+
+    await expect(runCommand()).rejects.toThrow('exit');
+    expect(capturedCode).toBe(1);
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
   });
 });

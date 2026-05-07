@@ -29,7 +29,9 @@ export function generatePreloadFile(config: NodulusConfig, version: string, cwd:
     return rel;
   }
 
-  const modulesDirRel = getRelativePathStr(modulesBase);
+  const escapeStr = (str: string) => str.replace(/'/g, "\\'");
+  
+  const modulesDirRel = escapeStr(getRelativePathStr(modulesBase));
 
   const aliases: Record<string, string> = {
     '@modules': `resolve(__dirname, '${modulesDirRel}')`
@@ -37,7 +39,7 @@ export function generatePreloadFile(config: NodulusConfig, version: string, cwd:
 
   if (config.aliases) {
     for (const [alias, target] of Object.entries(config.aliases)) {
-      aliases[alias] = `resolve(__dirname, '${getRelativePathStr(target)}')`;
+      aliases[escapeStr(alias)] = `resolve(__dirname, '${escapeStr(getRelativePathStr(target))}')`;
     }
   }
 
@@ -60,7 +62,7 @@ const NODULUS_PRELOAD_CONFIG = {
 ${aliasesEntries}
   },
   preloaded: true,
-  _version: '${version}'
+  _version: '${escapeStr(version)}'
 };
 
 globalThis.__NODULUS_PRELOAD_CONFIG__ = NODULUS_PRELOAD_CONFIG;
