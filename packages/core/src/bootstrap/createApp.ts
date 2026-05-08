@@ -9,7 +9,8 @@ import { NodulusError } from '../core/errors.js';
 import { createRegistry, registryContext } from '../core/registry.js';
 import { activateAliasResolver } from '../aliases/resolver.js';
 import { updateAliasCache } from '../aliases/cache.js';
-import { createLogger } from '../core/logger.js';
+import { createLogger, defaultLogHandler } from '../core/logger.js';
+import { setPinoInstance, createDefaultPinoInstance } from '../core/pino-instance.js';
 import { performance } from 'node:perf_hooks';
 import pc from 'picocolors';
 import { extractModuleImports } from '../nits/import-scanner.js';
@@ -74,6 +75,9 @@ export async function createApp(
 
   // Step 1 — Load configuration
   const config = await loadConfig(options);
+  if (config.logger === defaultLogHandler) {
+    setPinoInstance(createDefaultPinoInstance(config.logFormat, config.logLevel));
+  }
   const log = createLogger(config.logger, config.logLevel, 'boot');
 
   // Step 1.1 — Pre-loader Warnings

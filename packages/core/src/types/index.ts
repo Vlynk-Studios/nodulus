@@ -143,6 +143,8 @@ export interface NitsConfig {
   enabled?: boolean;
 }
 
+export type LogFormat = 'pretty' | 'json' | 'auto';
+
 export interface CreateAppOptions {
   /** Glob pointing to module folders. Default: 'src/modules/*'. */
   modules?: string;
@@ -184,6 +186,8 @@ export interface CreateAppOptions {
    * Default: 'info' (debug is off unless explicitly set).
    */
   logLevel?: LogLevel;
+  /** Format of the output logs. Default: 'auto' */
+  logFormat?: LogFormat;
   /** NITS (Nodulus Integrated Tracking System) configuration. */
   nits?: NitsConfig;
   /**
@@ -231,6 +235,7 @@ export interface ResolvedConfig {
   resolveAliases: boolean;
   logger: LogHandler;
   logLevel: LogLevel;
+  logFormat: LogFormat;
   nits: {
     enabled: boolean;
     similarityThreshold?: number;

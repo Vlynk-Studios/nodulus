@@ -41,6 +41,21 @@ export function resolveLogLevel(explicit?: LogLevel): LogLevel {
 }
 
 /**
+ * Resolves the effective log format.
+ * Priority: explicit logFormat option > NODULUS_LOG_FORMAT > auto (based on NODE_ENV).
+ */
+export function resolveLogFormat(explicit?: import('../types/index.js').LogFormat): 'pretty' | 'json' {
+  if (explicit && explicit !== 'auto') return explicit;
+
+  const envFormat = process.env.NODULUS_LOG_FORMAT;
+  if (envFormat === 'pretty' || envFormat === 'json') {
+    return envFormat;
+  }
+
+  return process.env.NODE_ENV === 'production' ? 'json' : 'pretty';
+}
+
+/**
  * Creates a log handler specifically for user applications.
  */
 export function createUserLogHandler(name: string): LogHandler {

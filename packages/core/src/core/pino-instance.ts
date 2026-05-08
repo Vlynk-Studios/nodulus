@@ -1,11 +1,15 @@
 import { pino, Logger as PinoLogger, stdSerializers } from 'pino';
-import { resolveLogLevel } from './logger.js';
+import { resolveLogLevel, resolveLogFormat } from './logger.js';
 
 let _instance: PinoLogger | null = null;
 
-function createDefaultPinoInstance(): PinoLogger {
-  const resolvedLevel = resolveLogLevel();
-  const isProduction = process.env.NODE_ENV === 'production';
+export function createDefaultPinoInstance(
+  explicitFormat?: import('../types/index.js').LogFormat,
+  explicitLevel?: import('../types/index.js').LogLevel
+): PinoLogger {
+  const resolvedLevel = resolveLogLevel(explicitLevel);
+  const resolvedFormat = resolveLogFormat(explicitFormat);
+  const isProduction = resolvedFormat === 'json';
 
   if (isProduction) {
     return pino({
