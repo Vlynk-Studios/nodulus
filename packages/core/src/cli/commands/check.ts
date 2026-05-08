@@ -12,6 +12,25 @@ import { reportReconciliation } from '../../nits/nits-reporter.js';
 import { computeModuleHash } from '../../nits/nits-hash.js';
 import type { DiscoveredModule } from '../../types/nits.js';
 
+function resolveCorePkgVersion(): string | null {
+  const depths = [
+    '../../../package.json',
+    '../../../../package.json',
+  ];
+  for (const depth of depths) {
+    try {
+      const url = new URL(depth, import.meta.url);
+      if (fs.existsSync(url)) {
+        const pkg = JSON.parse(fs.readFileSync(url, 'utf8'));
+        if (pkg.name?.includes('nodulus')) return pkg.version;
+      }
+    } catch {
+      // Ignore error and try the next depth
+    }
+  }
+  return null;
+}
+
 export function checkCommand(): Command {
   const check = new Command('check');
 
@@ -21,6 +40,7 @@ export function checkCommand(): Command {
     .option('--module <moduleName>', 'Filter analysis by a specific module')
     .option('--format <format>', 'Output format: text or json', 'text')
     .option('--no-circular', 'Skip circular dependency detection')
+    .option('--verbose', 'Show verbose output including internal NITS IDs')
     .action(async (options) => {
         const cwd = process.cwd();
         const config = await loadConfig();
@@ -37,10 +57,9 @@ export function checkCommand(): Command {
                 const versionMatch = content.match(/_version:\s*'([^']+)'/);
                 if (versionMatch) {
                     const preloadVersion = versionMatch[1];
-                    const pkgPath = new URL('../../../package.json', import.meta.url);
-                    const currentVersion = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
+                    const currentVersion = resolveCorePkgVersion();
                     
-                    if (preloadVersion !== currentVersion) {
+                    if (currentVersion && preloadVersion !== currentVersion) {
                         logger.warn(`Pre-loader version mismatch (found v${preloadVersion}, core is v${currentVersion}). Run "npx nodulus sync-preload" to update.`);
                     }
                 }
@@ -50,7 +69,8 @@ export function checkCommand(): Command {
         }
         
         const graph = await buildModuleGraph(config, cwd);
-        
+        let nitsResult: any = null;
+
         // NITS Reconciliation (Identity Tracking)
         if (config.nits.enabled) {
           try {
@@ -70,6 +90,7 @@ export function checkCommand(): Command {
             const result = await reconcile(discovered, oldRegistry, cwd, {
               similarityThreshold: config.nits.similarityThreshold
             });
+            nitsResult = result;
             const updatedRegistry = buildUpdatedNitsRegistry(result, oldRegistry.project);
             
             await saveNitsRegistry(updatedRegistry, cwd);
@@ -78,7 +99,8 @@ export function checkCommand(): Command {
 
             // Map IDs back to the graph nodes for reporting
             for (const node of graph.modules) {
-              node.id = idMap.get(path.resolve(node.dirPath));
+              const absPath = path.resolve(node.dirPath);
+              node.id = idMap.get(absPath);
             }
 
             const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0;
@@ -120,12 +142,19 @@ export function checkCommand(): Command {
 
         for (const node of nodes) {
           const moduleViolations = violations.filter(v => v.module === node.name);
-          const idStr = node.id ? pc.gray(` [${node.id}]`) : '';
+          
+          const hasIdentityConflict = nitsResult
+            ? nitsResult.candidates.some((c: any) => path.resolve(cwd, c.newPath) === path.resolve(node.dirPath)) ||
+              nitsResult.moved.some((m: any) => path.resolve(cwd, m.newPath) === path.resolve(node.dirPath))
+            : false;
+            
+          const showId = options.verbose || hasIdentityConflict;
+          const idStr = (showId && node.id) ? pc.gray(` [${node.id}]`) : '';
           
           if (moduleViolations.length === 0) {
             console.log(pc.green(`✔ ${node.name}${idStr} — OK`));
           } else {
-            console.log(pc.red(`✗ ${node.name} — ${moduleViolations.length} problem(s)`));
+            console.log(pc.red(`✗ ${node.name}${idStr} — ${moduleViolations.length} problem(s)`));
             for (const v of moduleViolations) {
               const prefix = pc.yellow('  WARN ');
               
