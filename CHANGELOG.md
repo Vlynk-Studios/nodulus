@@ -10,6 +10,18 @@ For full technical details, see the individual package changelogs:
 
 ---
 
+## [1.5.2] — 2026-05-08
+
+### nodulus-core
+- **`create-module` opt-in flags**: Default scaffolding now generates only `index.ts`. Use `--service`, `--routes`, `--repository`, `--schema`, or `--full` to add additional files explicitly. The old `--no-repository` / `--no-schema` flags have been removed.
+- **`nodulus check` ENOENT fix**: Replaced the hardcoded `import.meta.url` depth with a multi-depth resolver (`resolveCorePkgVersion()`) that gracefully skips version checking when no matching `package.json` is found, eliminating the noisy ENOENT warning in monorepo setups.
+- **NITS IDs hidden by default**: `nodulus check` no longer prints `[mod_...]` identifiers in its output unless `--verbose` is passed or an identity conflict (moved/candidate module) is detected.
+
+### eslint-plugin-nodulus
+- Version synchronized with `nodulus-core@1.5.2`. No new rules or behavioral changes.
+
+---
+
 ## [1.5.1] — 2026-05-07
 
 ### nodulus-core
