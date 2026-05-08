@@ -69,7 +69,8 @@ export function checkCommand(): Command {
         }
         
         const graph = await buildModuleGraph(config, cwd);
-        
+        let nitsResult: any = null;
+
         // NITS Reconciliation (Identity Tracking)
         if (config.nits.enabled) {
           try {
@@ -89,6 +90,7 @@ export function checkCommand(): Command {
             const result = await reconcile(discovered, oldRegistry, cwd, {
               similarityThreshold: config.nits.similarityThreshold
             });
+            nitsResult = result;
             const updatedRegistry = buildUpdatedNitsRegistry(result, oldRegistry.project);
             
             await saveNitsRegistry(updatedRegistry, cwd);
@@ -99,9 +101,6 @@ export function checkCommand(): Command {
             for (const node of graph.modules) {
               const absPath = path.resolve(node.dirPath);
               node.id = idMap.get(absPath);
-              (node as any).hasIdentityConflict = 
-                result.candidates.some(c => c.newPath === absPath) ||
-                result.moved.some(m => m.newPath === absPath);
             }
 
             const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0;
@@ -143,13 +142,19 @@ export function checkCommand(): Command {
 
         for (const node of nodes) {
           const moduleViolations = violations.filter(v => v.module === node.name);
-          const showId = options.verbose || (node as any).hasIdentityConflict;
-          const idStr = (node.id && showId) ? pc.gray(` [${node.id}]`) : '';
+          
+          const hasIdentityConflict = nitsResult
+            ? nitsResult.candidates.some((c: any) => path.resolve(cwd, c.newPath) === path.resolve(node.dirPath)) ||
+              nitsResult.moved.some((m: any) => path.resolve(cwd, m.newPath) === path.resolve(node.dirPath))
+            : false;
+            
+          const showId = options.verbose || hasIdentityConflict;
+          const idStr = (showId && node.id) ? pc.gray(` [${node.id}]`) : '';
           
           if (moduleViolations.length === 0) {
             console.log(pc.green(`✔ ${node.name}${idStr} — OK`));
           } else {
-            console.log(pc.red(`✗ ${node.name} — ${moduleViolations.length} problem(s)`));
+            console.log(pc.red(`✗ ${node.name}${idStr} — ${moduleViolations.length} problem(s)`));
             for (const v of moduleViolations) {
               const prefix = pc.yellow('  WARN ');
               

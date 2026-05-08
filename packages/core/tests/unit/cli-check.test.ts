@@ -193,49 +193,77 @@ describe('nodulus check', () => {
       ).rejects.toThrow(/violations found/i);
     });
 
-    it('NITS enabled: runs reconciliation, saves registry, and reports changes', async () => {
-      vi.spyOn(configModule, 'loadConfig').mockResolvedValue({
-        modules: 'src/modules/*',
-        prefix: '',
-        aliases: {},
-        strict: false,
-        nits: { enabled: true }
-      } as any);
+    describe('NITS formatting', () => {
+      beforeEach(() => {
+        vi.spyOn(configModule, 'loadConfig').mockResolvedValue({
+          modules: 'src/modules/*',
+          prefix: '',
+          aliases: {},
+          strict: false,
+          nits: { enabled: true }
+        } as any);
 
-      const fakeRegistry = {
-        project: 'test',
-        version: NITS_REGISTRY_VERSION,
-        lastCheck: '',
-        modules: {}
-      };
+        const fakeRegistry = {
+          project: 'test',
+          version: NITS_REGISTRY_VERSION,
+          lastCheck: '',
+          modules: {}
+        };
 
-      vi.spyOn(nitsStore, 'loadNitsRegistry').mockResolvedValue(null);
-      vi.spyOn(nitsStore, 'initNitsRegistry').mockReturnValue(fakeRegistry as any);
-      vi.spyOn(nitsStore, 'saveNitsRegistry').mockResolvedValue(undefined);
-      vi.spyOn(nitsStore, 'inferProjectName').mockReturnValue('test-project');
-      vi.spyOn(nitsHash, 'computeModuleHash').mockResolvedValue({ hash: 'abc', identifiers: [] });
-      const reconcileSpy = vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
-        confirmed: [],
-        moved: [],
-        candidates: [],
-        stale: [],
-        newModules: [{ id: 'mod_abc', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'active', createdAt: '', lastSeen: '', identifiers: [] }]
+        vi.spyOn(nitsStore, 'loadNitsRegistry').mockResolvedValue(null);
+        vi.spyOn(nitsStore, 'initNitsRegistry').mockReturnValue(fakeRegistry as any);
+        vi.spyOn(nitsStore, 'saveNitsRegistry').mockResolvedValue(undefined);
+        vi.spyOn(nitsStore, 'inferProjectName').mockReturnValue('test-project');
+        vi.spyOn(nitsHash, 'computeModuleHash').mockResolvedValue({ hash: 'abc', identifiers: [] });
+        vi.spyOn(nitsReconciler, 'buildUpdatedNitsRegistry').mockReturnValue(fakeRegistry as any);
       });
-      vi.spyOn(nitsReconciler, 'buildUpdatedNitsRegistry').mockReturnValue(fakeRegistry as any);
 
-      vi.spyOn(console, 'log').mockImplementation(() => {});
+      it('does not show NITS ID in default output', async () => {
+        vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
+          confirmed: [], moved: [], candidates: [], stale: [],
+          newModules: [{ id: 'mod_abc', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'active', createdAt: '', lastSeen: '', identifiers: [] }]
+        });
+        
+        const cmd = checkCommand();
+        await cmd.parseAsync(['node', 'test', '--module', 'orders']);
+        
+        const logCall = logSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('orders'));
+        expect(logCall).toBeDefined();
+        expect(logCall[0]).not.toMatch(/\[mod_abc\]/);
+      });
 
-      const cmd = checkCommand();
-      await cmd.parseAsync(['node', 'test', '--module', 'orders', '--verbose']);
+      it('shows NITS ID when --verbose is passed', async () => {
+        vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
+          confirmed: [], moved: [], candidates: [], stale: [],
+          newModules: [{ id: 'mod_abc', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'active', createdAt: '', lastSeen: '', identifiers: [] }]
+        });
+        
+        const cmd = checkCommand();
+        await cmd.parseAsync(['node', 'test', '--module', 'orders', '--verbose']);
+        
+        const logCall = logSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('orders'));
+        expect(logCall).toBeDefined();
+        expect(logCall[0]).toMatch(/\[mod_abc\]/);
+      });
 
-      expect(nitsStore.saveNitsRegistry).toHaveBeenCalled();
-      expect(reconcileSpy).toHaveBeenCalled();
-      
-      // Verify ID mapping appeared in log
-      const logCall = logSpy.mock.calls.find((call: any[]) => 
-        typeof call[0] === 'string' && call[0].includes('[mod_abc]')
-      );
-      expect(logCall).toBeDefined();
+      it('shows NITS ID without --verbose when there is an identity conflict', async () => {
+        vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
+          confirmed: [], candidates: [], stale: [], newModules: [],
+          moved: [{
+            oldPath: 'src/modules/old_orders',
+            newPath: 'src/modules/orders',
+            record: { id: 'mod_xyz', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'moved', createdAt: '', lastSeen: '', identifiers: [] },
+            brokenImports: []
+          }]
+        });
+        
+        const cmd = checkCommand();
+        await cmd.parseAsync(['node', 'test', '--module', 'orders']);
+        
+        const logCall = logSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('orders'));
+        expect(logCall).toBeDefined();
+        expect(logCall[0]).toMatch(/\[mod_xyz\]/);
+      });
     });
 
     it('does not emit ENOENT warning when package.json resolves correctly', async () => {
