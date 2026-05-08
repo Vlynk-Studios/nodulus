@@ -70,7 +70,7 @@ export async function activateAliasResolver(moduleAliases: Record<string, string
 
   if (globalThis.__NODULUS_PRELOAD_CONFIG__?.preloaded === true) {
     mergeAliasesIntoPreloadConfig(combinedAliases);
-    log.info(`ESM alias hook skipped (handled by pre-loader), merged ${Object.keys(combinedAliases).length} alias(es) into runtime config`, {
+    log.debug(`ESM alias hook skipped (handled by pre-loader), merged ${Object.keys(combinedAliases).length} alias(es) into runtime config`, {
       _module: 'alias',
       aliasCount: Object.keys(combinedAliases).length,
     });

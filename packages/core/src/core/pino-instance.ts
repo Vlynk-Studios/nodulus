@@ -1,4 +1,4 @@
-import { pino, Logger as PinoLogger } from 'pino';
+import { pino, Logger as PinoLogger, stdSerializers } from 'pino';
 import { resolveLogLevel } from './logger.js';
 
 let _instance: PinoLogger | null = null;
@@ -12,17 +12,26 @@ function createDefaultPinoInstance(): PinoLogger {
       level: resolvedLevel,
       timestamp: pino.stdTimeFunctions.isoTime,
       base: { service: 'nodulus' },
+      serializers: {
+        err: stdSerializers.err,
+        error: stdSerializers.err,
+      },
     });
   } else {
     return pino({
       level: resolvedLevel,
+      base: { service: 'nodulus' },
+      serializers: {
+        err: stdSerializers.err,
+        error: stdSerializers.err,
+      },
       transport: {
         target: 'pino-pretty',
         options: {
           colorize: true,
           translateTime: 'HH:MM:ss.l',
-          ignore: 'pid,hostname',
-          messageFormat: '[nodulus] {level} [{module}] {msg}'
+          ignore: 'pid,hostname,service',
+          messageFormat: '[{service}] {level} [{module}] {msg}'
         },
       },
     });

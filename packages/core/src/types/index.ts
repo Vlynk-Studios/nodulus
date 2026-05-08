@@ -45,7 +45,11 @@ export interface Logger {
   debug(message: string, meta?: Record<string, unknown>): void;
   info(message:  string, meta?: Record<string, unknown>): void;
   warn(message:  string, meta?: Record<string, unknown>): void;
-  error(message: string, meta?: Record<string, unknown>): void;
+  /**
+   * Logs an error message.
+   * If `meta.err` or `meta.error` is an Error instance, it is automatically serialized with its stack trace in JSON output.
+   */
+  error(message: string, meta?: Record<string, unknown> & { err?: Error, error?: Error }): void;
 }
 
 // ─── Public API types ─────────────────────────────────────────────────────────

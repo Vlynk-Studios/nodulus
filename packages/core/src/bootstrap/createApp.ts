@@ -556,11 +556,22 @@ export async function createApp(
 
     const safeRegisteredModules = allModules.map(m => registry.getModule(m.name)!);
     const durationMs = Math.round(performance.now() - startTime);
-    log.info(`${pc.green('Bootstrap complete')} — ${pc.cyan(allModules.length)} module(s), ${pc.cyan(mountedRoutes.length)} route(s) in ${pc.yellow(`${durationMs}ms`)}`, {
-      moduleCount: allModules.length,
-      routeCount: mountedRoutes.length,
-      durationMs,
-    });
+    
+    if (mountedRoutes.length === 0) {
+      log.warn('Mounted 0 route(s) — no controllers were registered. Is this expected?', { _module: 'router' });
+      log.warn(`${pc.yellow('Bootstrap complete')} — ${pc.cyan(allModules.length)} module(s), ${pc.yellow(mountedRoutes.length)} route(s) in ${pc.yellow(`${durationMs}ms`)}`, {
+        moduleCount: allModules.length,
+        routeCount: mountedRoutes.length,
+        durationMs,
+      });
+    } else {
+      log.info(`Mounted ${mountedRoutes.length} route(s)`, { _module: 'router' });
+      log.info(`${pc.green('Bootstrap complete')} — ${pc.cyan(allModules.length)} module(s), ${pc.cyan(mountedRoutes.length)} route(s) in ${pc.yellow(`${durationMs}ms`)}`, {
+        moduleCount: allModules.length,
+        routeCount: mountedRoutes.length,
+        durationMs,
+      });
+    }
 
     return {
       modules: safeRegisteredModules,
