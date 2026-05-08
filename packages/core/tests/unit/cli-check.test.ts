@@ -226,7 +226,7 @@ describe('nodulus check', () => {
       vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const cmd = checkCommand();
-      await cmd.parseAsync(['node', 'test', '--module', 'orders']);
+      await cmd.parseAsync(['node', 'test', '--module', 'orders', '--verbose']);
 
       expect(nitsStore.saveNitsRegistry).toHaveBeenCalled();
       expect(reconcileSpy).toHaveBeenCalled();

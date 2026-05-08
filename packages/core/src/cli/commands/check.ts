@@ -40,6 +40,7 @@ export function checkCommand(): Command {
     .option('--module <moduleName>', 'Filter analysis by a specific module')
     .option('--format <format>', 'Output format: text or json', 'text')
     .option('--no-circular', 'Skip circular dependency detection')
+    .option('--verbose', 'Show verbose output including internal NITS IDs')
     .action(async (options) => {
         const cwd = process.cwd();
         const config = await loadConfig();
@@ -96,7 +97,11 @@ export function checkCommand(): Command {
 
             // Map IDs back to the graph nodes for reporting
             for (const node of graph.modules) {
-              node.id = idMap.get(path.resolve(node.dirPath));
+              const absPath = path.resolve(node.dirPath);
+              node.id = idMap.get(absPath);
+              (node as any).hasIdentityConflict = 
+                result.candidates.some(c => c.newPath === absPath) ||
+                result.moved.some(m => m.newPath === absPath);
             }
 
             const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0;
@@ -138,7 +143,8 @@ export function checkCommand(): Command {
 
         for (const node of nodes) {
           const moduleViolations = violations.filter(v => v.module === node.name);
-          const idStr = node.id ? pc.gray(` [${node.id}]`) : '';
+          const showId = options.verbose || (node as any).hasIdentityConflict;
+          const idStr = (node.id && showId) ? pc.gray(` [${node.id}]`) : '';
           
           if (moduleViolations.length === 0) {
             console.log(pc.green(`✔ ${node.name}${idStr} — OK`));
