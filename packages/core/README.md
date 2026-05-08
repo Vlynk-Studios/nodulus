@@ -566,6 +566,66 @@ Nodulus Architecture Analysis
 
 ---
 
+## Logging _(v1.5.3+)_
+
+Nodulus uses a high-performance Pino logging engine internally, providing beautiful console output during development and highly structured JSON data for production observability.
+
+### Environment Variables
+
+| Variable | Description |
+|---|---|
+| `NODULUS_LOG_LEVEL` | Minimum severity to output (`debug`, `info`, `warn`, `error`, `fatal`). Default: `info`. |
+| `NODULUS_LOG_FORMAT` | Forces the output format. Allowed values: `pretty` \| `json` \| `auto`. Default is `auto` (uses `json` if `NODE_ENV=production`, otherwise `pretty`). |
+
+> **Note:** You can set `NODULUS_LOG_FORMAT=pretty` to force human-readable output even in staging environments where `NODE_ENV=production` might be set.
+
+### User-space Logger (`useLogger`)
+
+You can create context-aware child loggers for your own modules. This keeps your application logs visually identical to the framework logs and inherits global settings automatically.
+
+**Development Output (`logFormat: 'pretty'`):**
+```ts
+import { useLogger } from '@vlynk-studios/nodulus-core';
+
+const log = useLogger('my-app');
+log.info('Connecting to database...'); 
+// 19:15:30.123  [my-app]  INFO  Connecting to database...
+```
+
+**Production Output (`logFormat: 'json'`):**
+```json
+{"level":"info","time":"2026-05-08T22:15:30.123Z","service":"my-app","msg":"Connecting to database..."}
+```
+
+If you pass an `Error` object under the `err` or `error` key in the meta object, Nodulus automatically serializes the full stack trace in JSON mode:
+```ts
+log.error('Database connection failed', { err: new Error('Timeout') });
+```
+
+### Custom Transports (Loki, Datadog, etc.)
+
+If you need to stream logs directly to external providers using Pino transports instead of stdout, you can wrap a custom Pino instance and pass it via `nodulus.config.ts`:
+
+```ts
+// nodulus.config.ts
+import pino from 'pino';
+
+// Define your external transport (e.g., Datadog, Loki, Axiom)
+const externalPino = pino({
+  transport: {
+    target: 'pino-datadog-transport',
+    options: { ddClientConf: { authMethods: { apiKeyAuth: '...' } } }
+  }
+});
+
+export default {
+  // Redirect all Nodulus internal logs to your custom Pino instance
+  logger: (level, msg, meta) => externalPino[level](meta || {}, msg)
+};
+```
+
+---
+
 ## ESLint Plugin
 
 > **Available from v1.3.0** · Package: `@vlynk-studios/eslint-plugin-nodulus`

@@ -107,10 +107,10 @@ export async function createApp(
   }
 
   log.info('Bootstrap started', {
-    modules: pc.cyan(config.modules),
-    prefix: pc.cyan(config.prefix || '(none)'),
-    strict: pc.yellow(String(config.strict)),
-    nodeVersion: pc.gray(process.version),
+    modules: config.modules,
+    prefix: config.prefix || '(none)',
+    strict: config.strict,
+    nodeVersion: process.version,
   });
 
   // Step 2 — Resolve modules
@@ -419,19 +419,23 @@ export async function createApp(
     cwd: process.cwd(),
     ignore: ['**/*.types.*', '**/*.d.ts', '**/*.spec.*', '**/*.test.*']
   });
-
   const controllerFilesByModule = new Map<string, string[]>();
   for (const mod of allModules) {
     controllerFilesByModule.set(mod.name, []);
   }
   
   for (const file of allControllerFiles) {
+    const normalizedFile = normalizePath(file);
     for (const mod of allModules) {
       const rawMod = registry.getRawModule(mod.name);
       if (!rawMod) continue;
-      if (file.startsWith(rawMod.path + path.sep) || file.startsWith(rawMod.path + '/')) {
+      
+      const normalizedModPath = normalizePath(rawMod.path);
+      const normalizedIndexPath = normalizePath(rawMod.indexPath);
+      
+      if (normalizedFile.startsWith(normalizedModPath + '/')) {
         // Exclude the module's main index file
-        if (file === rawMod.indexPath) continue;
+        if (normalizedFile === normalizedIndexPath) continue;
         controllerFilesByModule.get(mod.name)?.push(file);
         break;
       }

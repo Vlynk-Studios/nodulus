@@ -10,6 +10,20 @@ For full technical details, see the individual package changelogs:
 
 ---
 
+## [1.5.3] — 2026-05-08
+
+### nodulus-core
+- **Pino Logger Integration**: Internal integration with Pino as the high-performance logging engine.
+- **Production JSON Logs**: Added support for structured JSON output (`NODE_ENV=production`) with automatic `Error` serialization (`meta.err`) for advanced observability.
+- **Dynamic Formatting**: Added `NODULUS_LOG_FORMAT` environment variable (`pretty` | `json` | `auto`) and a `logFormat` option in `nodulus.config.ts`.
+- **`useLogger()` Updates**: User-space loggers now spawn Pino child loggers containing a `service` context field in JSON outputs.
+- **Semantic Levels adjustments**: Reduced console noise by downgrading `ESM alias hook skipped` to debug level, and upgrading `Mounted 0 route(s)` to warn level.
+
+### eslint-plugin-nodulus
+- Version synchronized with `nodulus-core@1.5.3`. No new rules or behavioral changes.
+
+---
+
 ## [1.5.2] — 2026-05-08
 
 ### nodulus-core
