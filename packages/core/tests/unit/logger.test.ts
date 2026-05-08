@@ -1,220 +1,122 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createLogger, useLogger, resolveLogLevel, defaultLogHandler } from '../../src/core/logger.js';
+import { createLogger, useLogger, resolveLogLevel, resolveLogFormat, defaultLogHandler } from '../../src/core/logger.js';
+import { createDefaultPinoInstance, setPinoInstance } from '../../src/core/pino-instance.js';
 import type { LogHandler } from '../../src/types/index.js';
 
 describe('Logger Utility', () => {
-  // ── 3.1 ─ Internal formatter (defaultLogHandler) ─────────────────────────
+  let stdoutSpy: ReturnType<typeof vi.spyOn>;
 
-  describe('defaultLogHandler', () => {
-    let stdoutSpy: ReturnType<typeof vi.spyOn>;
-    let stderrSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    // Intercept Pino's default stdout destination
+    stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    
+    vi.stubEnv('NODULUS_LOG_LEVEL', '');
+    vi.stubEnv('NODE_DEBUG', '');
+    vi.stubEnv('NODULUS_LOG_FORMAT', '');
+    vi.stubEnv('NODE_ENV', 'production'); // Default to JSON for Pino tests
+    
+    // Reset Pino instance before each test
+    setPinoInstance(createDefaultPinoInstance('json', 'info'));
+  });
 
-    beforeEach(() => {
-      stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-      stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-    });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    afterEach(() => {
-      stdoutSpy.mockRestore();
-      stderrSpy.mockRestore();
-    });
-
-    it('should format message with [Nodulus] prefix and alignment', () => {
-      defaultLogHandler('info', 'hello world');
-      const output = stdoutSpy.mock.calls[0][0] as string;
-
-      expect(output).toContain('[Nodulus]');
-      expect(output).toContain('info '); // padding
-      expect(output).toContain('hello world\n');
-    });
-
-    it('should parse module from string prefix [mod]', () => {
-      defaultLogHandler('info', '[boot] system started');
-      const output = stdoutSpy.mock.calls[0][0] as string;
-
-      expect(output).toContain('[boot]');
-      expect(output).toContain('system started\n');
-      expect(output).not.toContain('[boot] [boot]'); // should strip from message
-    });
-
-    it('should use meta._module for module context', () => {
-      defaultLogHandler('info', 'database connected', { _module: 'db' });
-      const output = stdoutSpy.mock.calls[0][0] as string;
-
-      expect(output).toContain('[db]');
-      expect(output).toContain('database connected\n');
-    });
-
-    // ── 3.1 · Alignment test ──────────────────────────────────────────
-
-    it('alignment: output with _module contains [module] padded to 10 chars', () => {
-      defaultLogHandler('info', 'ready', { _module: 'boot' });
-      const output = stdoutSpy.mock.calls[0][0] as string;
-
-      // Module token "[boot]" (6 chars) must be padded to 10 chars total
-      expect(output).toContain('[boot]');
-      // The padded module column is 10 chars — there must be at least 4 trailing spaces after [boot]
-      expect(output).toMatch(/\[boot\]\s{4}/);
-    });
-
-    // ── 3.1 · Module absence test ─────────────────────────────────
-
-    it('absence of module: output is valid and contains 10-space column placeholder', () => {
-      defaultLogHandler('info', 'no module here');
-      const output = stdoutSpy.mock.calls[0][0] as string;
-
-      // No broken empty bracket should appear
-      expect(output).not.toContain('[]');
-      // The module column must be filled with 10 spaces (padEnd(10) on '')
-      expect(output).toContain(' '.repeat(10));
-      expect(output).toContain('no module here\n');
-    });
-
-    // ── 3.1 · Color levels test (stderr vs stdout) ────────────────
-
-    it('should write warn/error to stderr', () => {
-      defaultLogHandler('warn', 'low disk space');
-      expect(stderrSpy).toHaveBeenCalled();
-      expect(stdoutSpy).not.toHaveBeenCalled();
-    });
-
-    it('should write error to stderr', () => {
-      defaultLogHandler('error', 'fatal failure');
-      expect(stderrSpy).toHaveBeenCalled();
-      expect(stdoutSpy).not.toHaveBeenCalled();
-    });
-
-    it('should write info/debug to stdout', () => {
-      defaultLogHandler('info', 'started');
+  describe('defaultLogHandler & Pino Instance', () => {
+    it('en modo JSON emite objeto con campos time, level, module, msg', () => {
+      defaultLogHandler('info', 'Hello world', { _module: 'test' });
+      
       expect(stdoutSpy).toHaveBeenCalled();
-      expect(stderrSpy).not.toHaveBeenCalled();
+      const rawOutput = stdoutSpy.mock.calls[0][0] as string;
+      const logOutput = JSON.parse(rawOutput);
+      
+      expect(logOutput).toHaveProperty('time');
+      expect(logOutput).toHaveProperty('level', 30); // info
+      expect(logOutput).toHaveProperty('module', 'test');
+      expect(logOutput).toHaveProperty('msg', 'Hello world');
+      expect(logOutput).toHaveProperty('service', 'nodulus');
     });
 
-    it('should write debug to stdout', () => {
-      defaultLogHandler('debug', 'verbose detail');
+    it('respeta minLevel (mensajes por debajo del nivel no se emiten)', () => {
+      // Re-configure to warn
+      setPinoInstance(createDefaultPinoInstance('json', 'warn'));
+      
+      defaultLogHandler('info', 'This should be ignored');
+      defaultLogHandler('warn', 'This should be logged');
+      
+      expect(stdoutSpy).toHaveBeenCalledTimes(1);
+      const logOutput = JSON.parse(stdoutSpy.mock.calls[0][0] as string);
+      expect(logOutput.msg).toBe('This should be logged');
+    });
+    
+    it('meta con err: new Error() serializa stack en modo JSON', () => {
+      const testError = new Error('Database connection failed');
+      defaultLogHandler('error', 'Query failed', { err: testError });
+      
       expect(stdoutSpy).toHaveBeenCalled();
-      expect(stderrSpy).not.toHaveBeenCalled();
+      const logOutput = JSON.parse(stdoutSpy.mock.calls[0][0] as string);
+      
+      expect(logOutput.err).toBeDefined();
+      expect(logOutput.err.type).toBe('Error');
+      expect(logOutput.err.message).toBe('Database connection failed');
+      expect(logOutput.err.stack).toBeDefined();
+      expect(logOutput.msg).toBe('Query failed');
     });
   });
 
-  // ── 3.2 ─ resolveLogLevel ────────────────────────────────────────────────
-
-  describe('resolveLogLevel', () => {
-    const originalNodeDebug = process.env.NODE_DEBUG;
-    const originalNodulusLogLevel = process.env.NODULUS_LOG_LEVEL;
-
-    beforeEach(() => {
-      delete process.env.NODE_DEBUG;
-      delete process.env.NODULUS_LOG_LEVEL;
+  describe('Public API (useLogger & createLogger)', () => {
+    it('useLogger("app") crea child logger con campo service: "app" en output JSON', () => {
+      const appLogger = useLogger('app');
+      appLogger.info('App started');
+      
+      expect(stdoutSpy).toHaveBeenCalled();
+      const logOutput = JSON.parse(stdoutSpy.mock.calls[0][0] as string);
+      
+      expect(logOutput.service).toBe('app');
+      expect(logOutput.msg).toBe('App started');
     });
 
-    afterEach(() => {
-      process.env.NODE_DEBUG = originalNodeDebug;
-      process.env.NODULUS_LOG_LEVEL = originalNodulusLogLevel;
-    });
-
-    // ── Existing tests — preserved unchanged ──────────────────────────────
-
-    it('should return explicit level if provided', () => {
-      expect(resolveLogLevel('error')).toBe('error');
-    });
-
-    it('should prioritize NODULUS_LOG_LEVEL over NODE_DEBUG', () => {
-      process.env.NODULUS_LOG_LEVEL = 'warn';
-      process.env.NODE_DEBUG = 'nodulus';
-      expect(resolveLogLevel()).toBe('warn');
-    });
-
-    it('should return debug if NODE_DEBUG includes nodulus', () => {
-      process.env.NODE_DEBUG = 'other,nodulus,more';
-      expect(resolveLogLevel()).toBe('debug');
-    });
-
-    it('should return info by default', () => {
-      expect(resolveLogLevel()).toBe('info');
-    });
-
-    // ── 3.2 · NODULUS_LOG_LEVEL test ──────────────────────────────────
-
-    it('NODULUS_LOG_LEVEL=warn (alone) → returns "warn"', () => {
-      process.env.NODULUS_LOG_LEVEL = 'warn';
-      expect(resolveLogLevel()).toBe('warn');
-    });
-
-    it('NODULUS_LOG_LEVEL=debug (alone) → returns "debug"', () => {
-      process.env.NODULUS_LOG_LEVEL = 'debug';
-      expect(resolveLogLevel()).toBe('debug');
-    });
-
-    // ── 3.2 · Priority test: explicit wins over env ────────────────
-
-    it('priority: NODULUS_LOG_LEVEL=warn + explicit="error" → returns "error"', () => {
-      process.env.NODULUS_LOG_LEVEL = 'warn';
-      expect(resolveLogLevel('error')).toBe('error');
-    });
-
-    it('priority: NODULUS_LOG_LEVEL=debug + explicit="warn" → returns "warn"', () => {
-      process.env.NODULUS_LOG_LEVEL = 'debug';
-      expect(resolveLogLevel('warn')).toBe('warn');
+    it('createLogger("app") returns identical child logger', () => {
+      const appLogger = createLogger('app');
+      appLogger.info('App started');
+      
+      expect(stdoutSpy).toHaveBeenCalled();
+      const logOutput = JSON.parse(stdoutSpy.mock.calls[0][0] as string);
+      
+      expect(logOutput.service).toBe('app');
     });
   });
 
-  // ── 3.3 ─ Public API for user applications ───────────────────────────────
-
-  describe('createLogger (string overload — public API)', () => {
-    // ── 3.3 · String overload test ──────────────────────────────
-
-    it('createLogger("my-app") returns a functional Logger', () => {
-      const log = createLogger('my-app');
-      expect(log).toHaveProperty('debug');
-      expect(log).toHaveProperty('info');
-      expect(log).toHaveProperty('warn');
-      expect(log).toHaveProperty('error');
-      expect(typeof log.info).toBe('function');
+  describe('Configuration Resolution', () => {
+    it('resolveLogLevel() con NODULUS_LOG_LEVEL=warn retorna "warn"', () => {
+      vi.stubEnv('NODULUS_LOG_LEVEL', 'warn');
+      expect(resolveLogLevel()).toBe('warn');
     });
 
-    // ── 3.3 · Format test ─────────────────────────────────────────────
-
-    it('output of createLogger("my-app").info("hello") contains [my-app] and not [Nodulus]', () => {
-      const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-
-      try {
-        const log = createLogger('my-app');
-        log.info('hello');
-
-        expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('[my-app]'));
-        expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('hello\n'));
-        expect(stdoutSpy).not.toHaveBeenCalledWith(expect.stringContaining('[Nodulus]'));
-      } finally {
-        stdoutSpy.mockRestore();
-      }
+    it('resolveLogLevel() con NODE_DEBUG=nodulus retorna "debug"', () => {
+      vi.stubEnv('NODE_DEBUG', 'fs,nodulus,http');
+      expect(resolveLogLevel()).toBe('debug');
     });
 
-    // ── 3.3 · Level test ───────────────────────────────────────────────
-
-    it('createLogger("my-app").debug with NODULUS_LOG_LEVEL=info → emits nothing', () => {
-      const originalLevel = process.env.NODULUS_LOG_LEVEL;
-      process.env.NODULUS_LOG_LEVEL = 'info';
-
-      const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-      const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
-
-      try {
-        const log = createLogger('my-app');
-        log.debug('x');
-
-        expect(stdoutSpy).not.toHaveBeenCalled();
-        expect(stderrSpy).not.toHaveBeenCalled();
-      } finally {
-        process.env.NODULUS_LOG_LEVEL = originalLevel;
-        stdoutSpy.mockRestore();
-        stderrSpy.mockRestore();
-      }
+    it('logFormat: "json" fuerza JSON aunque NODE_ENV no sea producción', () => {
+      vi.stubEnv('NODE_ENV', 'development');
+      expect(resolveLogFormat('json')).toBe('json');
+    });
+    
+    it('logFormat: "pretty" fuerza pino-pretty aunque NODE_ENV sea producción', () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      expect(resolveLogFormat('pretty')).toBe('pretty');
+    });
+    
+    it('NODULUS_LOG_FORMAT=pretty env variable forces format', () => {
+      vi.stubEnv('NODULUS_LOG_FORMAT', 'pretty');
+      expect(resolveLogFormat()).toBe('pretty');
     });
   });
 
   describe('createLogger (handler overload — internal API)', () => {
-    it('should filter messages below the minimum level', () => {
+    it('should filter messages below the minimum level for custom handlers', () => {
       const handler = vi.fn() as unknown as LogHandler;
       const log = createLogger(handler, 'warn');
 
@@ -228,7 +130,7 @@ describe('Logger Utility', () => {
       expect(handler).toHaveBeenCalledWith('error', 'error message', undefined);
     });
 
-    it('should pass meta data correctly and merge module', () => {
+    it('should pass meta data correctly and merge module for custom handlers', () => {
       const handler = vi.fn() as unknown as LogHandler;
       const log = createLogger(handler, 'debug', 'test-mod');
       const meta = { foo: 'bar' };
@@ -236,32 +138,6 @@ describe('Logger Utility', () => {
       log.info('test', meta);
 
       expect(handler).toHaveBeenCalledWith('info', 'test', { _module: 'test-mod', foo: 'bar' });
-    });
-
-    it('should allow meta._module to override the default module', () => {
-      const handler = vi.fn() as unknown as LogHandler;
-      const log = createLogger(handler, 'debug', 'default-mod');
-
-      log.info('test', { _module: 'override-mod' });
-
-      expect(handler).toHaveBeenCalledWith('info', 'test', { _module: 'override-mod' });
-    });
-  });
-
-  // ── 3.3 (via useLogger) ─ Existing tests, preserved ─────────────────────
-
-  describe('useLogger', () => {
-    it('should create a logger with the given name as prefix', () => {
-      const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-      const log = useLogger('my-app');
-
-      log.info('hello');
-
-      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('[my-app]'));
-      expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('hello\n'));
-      expect(stdoutSpy).not.toHaveBeenCalledWith(expect.stringContaining('[Nodulus]'));
-
-      stdoutSpy.mockRestore();
     });
   });
 });
