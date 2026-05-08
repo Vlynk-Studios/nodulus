@@ -9,11 +9,14 @@ export function createModuleCommand() {
     .description('Scaffolds a new Nodulus module')
     .argument('<name>', 'Module name (lowercase, no spaces/special chars)')
     .option('-p, --path <path>', 'Destination folder path (default: src/modules/<name>)')
-    .option('--no-repository', 'Skip generating a repository file')
-    .option('--no-schema', 'Skip generating a schema file')
+    .option('--service', 'Include a service file')
+    .option('--routes', 'Include a routes file')
+    .option('--repository', 'Include a repository file')
+    .option('--schema', 'Include a schema file')
+    .option('--full', 'Include all files (service, routes, repository, schema)')
     .option('--js', 'Force generate JavaScript (.js) files')
     .option('--ts', 'Force generate TypeScript (.ts) files')
-    .action((name: string, options: { path?: string; repository: boolean; schema: boolean; js?: boolean; ts?: boolean }) => {
+    .action((name: string, options: { path?: string; service?: boolean; routes?: boolean; repository?: boolean; schema?: boolean; full?: boolean; js?: boolean; ts?: boolean }) => {
       if (!/^[a-z0-9-]+$/.test(name)) {
         throw new NodulusError('CLI_ERROR', pc.red(`\nError: Invalid module name "${name}". Module names must be lowercase and contain only letters, numbers, or hyphens.\n`));
       }
@@ -40,15 +43,20 @@ export function createModuleCommand() {
 
       const files: Record<string, string> = {
         [`index.${ext}`]: generateIndex(name),
-        [`${name}.routes.${ext}`]: generateRoutes(name),
-        [`${name}.service.${ext}`]: generateService(name),
       };
 
-      if (options.repository) {
+      const includeAll = options.full;
+
+      if (includeAll || options.service) {
+        files[`${name}.service.${ext}`] = generateService(name);
+      }
+      if (includeAll || options.routes) {
+        files[`${name}.routes.${ext}`] = generateRoutes(name);
+      }
+      if (includeAll || options.repository) {
         files[`${name}.repository.${ext}`] = generateRepository(name);
       }
-      
-      if (options.schema) {
+      if (includeAll || options.schema) {
         files[`${name}.schema.${ext}`] = generateSchema(name);
       }
 
@@ -60,7 +68,18 @@ export function createModuleCommand() {
       for (const filename of Object.keys(files)) {
         console.log(`  ${pc.cyan(filename)}`);
       }
-      console.log(`\nNext step: add '${name}' to the imports array of modules that require it.\n`);
+      let nextStepMsg: string;
+      const isDefault = !options.full && !options.routes && !options.service && !options.repository && !options.schema;
+      
+      if (isDefault) {
+        nextStepMsg = 'Add your identifiers (Service, Controller, etc.) as needed.';
+      } else if (options.full || options.routes) {
+        nextStepMsg = `Add '${name}' to the imports array of modules that require it and configure your routes.`;
+      } else {
+        nextStepMsg = `Add '${name}' to the imports array of modules that require it.`;
+      }
+
+      console.log(`\nNext step: ${nextStepMsg}\n`);
     });
 }
 
