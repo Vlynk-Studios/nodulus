@@ -237,5 +237,16 @@ describe('nodulus check', () => {
       );
       expect(logCall).toBeDefined();
     });
+
+    it('does not emit ENOENT warning when package.json resolves correctly', async () => {
+      const cmd = checkCommand();
+      await cmd.parseAsync(['node', 'test', '--module', 'orders']);
+      
+      const hasEnoent = _errorSpy.mock.calls.some((call: any[]) => 
+        typeof call[0] === 'string' && call[0].includes('ENOENT')
+      );
+      
+      expect(hasEnoent).toBe(false);
+    });
   });
 });

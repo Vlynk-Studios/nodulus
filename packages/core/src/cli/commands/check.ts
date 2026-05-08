@@ -12,6 +12,25 @@ import { reportReconciliation } from '../../nits/nits-reporter.js';
 import { computeModuleHash } from '../../nits/nits-hash.js';
 import type { DiscoveredModule } from '../../types/nits.js';
 
+function resolveCorePkgVersion(): string | null {
+  const depths = [
+    '../../../package.json',
+    '../../../../package.json',
+  ];
+  for (const depth of depths) {
+    try {
+      const url = new URL(depth, import.meta.url);
+      if (fs.existsSync(url)) {
+        const pkg = JSON.parse(fs.readFileSync(url, 'utf8'));
+        if (pkg.name?.includes('nodulus')) return pkg.version;
+      }
+    } catch {
+      // Ignore error and try the next depth
+    }
+  }
+  return null;
+}
+
 export function checkCommand(): Command {
   const check = new Command('check');
 
@@ -37,10 +56,9 @@ export function checkCommand(): Command {
                 const versionMatch = content.match(/_version:\s*'([^']+)'/);
                 if (versionMatch) {
                     const preloadVersion = versionMatch[1];
-                    const pkgPath = new URL('../../../package.json', import.meta.url);
-                    const currentVersion = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
+                    const currentVersion = resolveCorePkgVersion();
                     
-                    if (preloadVersion !== currentVersion) {
+                    if (currentVersion && preloadVersion !== currentVersion) {
                         logger.warn(`Pre-loader version mismatch (found v${preloadVersion}, core is v${currentVersion}). Run "npx nodulus sync-preload" to update.`);
                     }
                 }
