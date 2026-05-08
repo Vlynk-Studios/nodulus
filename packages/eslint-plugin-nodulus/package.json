@@ -33,13 +33,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Vlynk-Studios/nodulus-core",
+    "url": "https://github.com/Vlynk-Studios/nodulus",
     "directory": "packages/eslint-plugin-nodulus"
   },
   "bugs": {
-    "url": "https://github.com/Vlynk-Studios/nodulus-core/issues"
+    "url": "https://github.com/Vlynk-Studios/nodulus/issues"
   },
-  "homepage": "https://github.com/Vlynk-Studios/nodulus-core/tree/main/packages/eslint-plugin-nodulus#readme",
+  "homepage": "https://github.com/Vlynk-Studios/nodulus/tree/main/packages/eslint-plugin-nodulus#readme",
   "peerDependencies": {
     "eslint": ">=8.0.0"
   },
