@@ -43,15 +43,20 @@ export function createModuleCommand() {
 
       const files: Record<string, string> = {
         [`index.${ext}`]: generateIndex(name),
-        [`${name}.routes.${ext}`]: generateRoutes(name),
-        [`${name}.service.${ext}`]: generateService(name),
       };
 
-      if (options.repository) {
+      const includeAll = options.full;
+
+      if (includeAll || options.service) {
+        files[`${name}.service.${ext}`] = generateService(name);
+      }
+      if (includeAll || options.routes) {
+        files[`${name}.routes.${ext}`] = generateRoutes(name);
+      }
+      if (includeAll || options.repository) {
         files[`${name}.repository.${ext}`] = generateRepository(name);
       }
-      
-      if (options.schema) {
+      if (includeAll || options.schema) {
         files[`${name}.schema.${ext}`] = generateSchema(name);
       }
 
