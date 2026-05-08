@@ -36,58 +36,35 @@ describe("CLI: create-module", () => {
     await cmd.parseAsync(["node", "cli", ...args]);
   };
 
-  it("generates the correct files at the specified path", async () => {
+  it("generates only index.ts by default", async () => {
     await runCommand(["testmodule", "--path", testModuleDir]);
 
     expect(fs.existsSync(testModuleDir)).toBe(true);
     expect(fs.existsSync(path.join(testModuleDir, "index.ts"))).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.routes.ts")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.service.ts")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.repository.ts")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.schema.ts")),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.routes.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.service.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.repository.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.schema.ts"))).toBe(false);
   });
 
-  it("--no-repository omits the repository file generation", async () => {
-    await runCommand([
-      "testmodule",
-      "--path",
-      testModuleDir,
-      "--no-repository",
-    ]);
+  it("--full generates all standard files", async () => {
+    await runCommand(["testmodule", "--path", testModuleDir, "--full"]);
 
     expect(fs.existsSync(path.join(testModuleDir, "index.ts"))).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.routes.ts")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.repository.ts")),
-    ).toBe(false);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.schema.ts")),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.routes.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.service.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.repository.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.schema.ts"))).toBe(true);
   });
 
-  it("--no-schema omits the schema file generation", async () => {
-    await runCommand(["testmodule", "--path", testModuleDir, "--no-schema"]);
+  it("additive flags generate specific files", async () => {
+    await runCommand(["testmodule", "--path", testModuleDir, "--routes", "--service"]);
 
     expect(fs.existsSync(path.join(testModuleDir, "index.ts"))).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.routes.ts")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.repository.ts")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(testModuleDir, "testmodule.schema.ts")),
-    ).toBe(false);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.routes.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.service.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.repository.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(testModuleDir, "testmodule.schema.ts"))).toBe(false);
   });
 
   it("throws a descriptive error when name contains uppercase letters or spaces", async () => {
@@ -102,7 +79,6 @@ describe("CLI: create-module", () => {
     await runCommand(["testmodule", "--path", testModuleDir, "--js"]);
 
     expect(fs.existsSync(path.join(testModuleDir, "index.js"))).toBe(true);
-    expect(fs.existsSync(path.join(testModuleDir, "testmodule.routes.js"))).toBe(true);
     expect(fs.existsSync(path.join(testModuleDir, "index.ts"))).toBe(false);
   });
 
@@ -110,7 +86,6 @@ describe("CLI: create-module", () => {
     await runCommand(["testmodule", "--path", testModuleDir, "--ts"]);
 
     expect(fs.existsSync(path.join(testModuleDir, "index.ts"))).toBe(true);
-    expect(fs.existsSync(path.join(testModuleDir, "testmodule.routes.ts"))).toBe(true);
     expect(fs.existsSync(path.join(testModuleDir, "index.js"))).toBe(false);
   });
 
@@ -124,7 +99,7 @@ describe("CLI: create-module", () => {
   });
 
   it("generates a schema without hardcoding zod dependency", async () => {
-    await runCommand(["testmodule", "--path", testModuleDir]);
+    await runCommand(["testmodule", "--path", testModuleDir, "--schema"]);
     
     const schemaFile = path.join(testModuleDir, "testmodule.schema.ts");
     expect(fs.existsSync(schemaFile)).toBe(true);

@@ -68,7 +68,18 @@ export function createModuleCommand() {
       for (const filename of Object.keys(files)) {
         console.log(`  ${pc.cyan(filename)}`);
       }
-      console.log(`\nNext step: add '${name}' to the imports array of modules that require it.\n`);
+      let nextStepMsg: string;
+      const isDefault = !options.full && !options.routes && !options.service && !options.repository && !options.schema;
+      
+      if (isDefault) {
+        nextStepMsg = 'Add your identifiers (Service, Controller, etc.) as needed.';
+      } else if (options.full || options.routes) {
+        nextStepMsg = `Add '${name}' to the imports array of modules that require it and configure your routes.`;
+      } else {
+        nextStepMsg = `Add '${name}' to the imports array of modules that require it.`;
+      }
+
+      console.log(`\nNext step: ${nextStepMsg}\n`);
     });
 }
 
