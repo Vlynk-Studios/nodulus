@@ -1,5 +1,5 @@
-import pc from 'picocolors';
 import type { LogLevel, LogHandler, Logger } from '../types/index.js';
+import { getPinoInstance } from './pino-instance.js';
 
 const LEVEL_ORDER: Record<LogLevel, number> = {
   debug: 0,
@@ -8,61 +8,28 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
   error: 3,
 };
 
-const LEVEL_STYLE: Record<LogLevel, (msg: string) => string> = {
-  debug: (msg) => pc.gray(msg),
-  info:  (msg) => pc.cyan(msg),
-  warn:  (msg) => pc.yellow(msg),
-  error: (msg) => pc.red(msg),
-};
-
 /**
- * Default log handler. Writes to process.stdout (info/debug) or process.stderr (warn/error).
- * All lines are prefixed with [Nodulus].
+ * Default log handler. Delegates to internal Pino instance.
  */
 export const defaultLogHandler: LogHandler = (level, rawMessage, meta) => {
-  const prefix = pc.gray('[Nodulus]');
-  
-  // Pad level to 5 chars: 'info ', 'warn ', 'debug', 'error'
-  const paddedLevel = level.padEnd(5);
-  // Keep original level colors for the label to maintain visual hierarchy
-  const coloredLabel = LEVEL_STYLE[level](paddedLevel);
+  const pinoLog = getPinoInstance();
 
-  let moduleName = '';
+  let moduleName = meta?._module as string | undefined;
   let message = rawMessage;
 
-  // Read context from meta._module if present
-  if (meta && typeof meta._module === 'string') {
-    moduleName = `[${meta._module}]`;
-  } else {
-    // Fallback: Parse [module] context from the message for internal logs
+  // Fallback: Parse [module] context from the message for internal logs
+  if (!moduleName) {
     const match = rawMessage.match(/^\[([^\]]+)\]\s*(.*)/);
     if (match) {
-      moduleName = `[${match[1]}]`;
+      moduleName = match[1];
       message = match[2];
     }
   }
 
-  // Pad module to 10 chars. If empty, it becomes 10 spaces.
-  const paddedModule = moduleName.padEnd(10);
-  const coloredModule = pc.dim(paddedModule);
+  // Separar _module del resto del meta para no contaminar el log estructurado
+  const { _module, ...cleanMeta } = meta ?? {};
 
-  // Color the message based on the level
-  let coloredMessage = message;
-  switch (level) {
-    case 'debug': coloredMessage = pc.gray(message); break;
-    case 'info':  coloredMessage = message; /* default */ break;
-    case 'warn':  coloredMessage = pc.yellow(message); break;
-    case 'error': coloredMessage = pc.red(message); break;
-  }
-
-  // Format line: [Nodulus] LEVEL  [module]    message
-  const line = `${prefix} ${coloredLabel}  ${coloredModule} ${coloredMessage}`;
-  
-  if (level === 'warn' || level === 'error') {
-    process.stderr.write(line + '\n');
-  } else {
-    process.stdout.write(line + '\n');
-  }
+  pinoLog[level]({ module: moduleName, ...cleanMeta }, message);
 };
 
 /**
@@ -87,29 +54,12 @@ export function resolveLogLevel(explicit?: LogLevel): LogLevel {
 
 /**
  * Creates a log handler specifically for user applications.
- * Output format: [name]  LEVEL  message (without Nodulus prefix).
  */
 export function createUserLogHandler(name: string): LogHandler {
-  return (level, rawMessage) => {
-    const prefix = pc.gray(`[${name}]`);
-    const paddedLevel = level.padEnd(5);
-    const coloredLabel = LEVEL_STYLE[level](paddedLevel);
-
-    let coloredMessage = rawMessage;
-    switch (level) {
-      case 'debug': coloredMessage = pc.gray(rawMessage); break;
-      case 'info':  coloredMessage = rawMessage; break;
-      case 'warn':  coloredMessage = pc.yellow(rawMessage); break;
-      case 'error': coloredMessage = pc.red(rawMessage); break;
-    }
-
-    const line = `${prefix} ${coloredLabel}  ${coloredMessage}`;
-    
-    if (level === 'warn' || level === 'error') {
-      process.stderr.write(line + '\n');
-    } else {
-      process.stdout.write(line + '\n');
-    }
+  return (level, rawMessage, meta) => {
+    const pinoLog = getPinoInstance();
+    const { _module, ...cleanMeta } = meta ?? {};
+    pinoLog[level]({ name, module: _module, ...cleanMeta }, rawMessage);
   };
 }
 
@@ -132,7 +82,7 @@ export function useLogger(name: string): Logger {
  * const log = createLogger('my-app');
  * log.info('server ready');
  * ```
- * Uses the user-facing handler (no [Nodulus] prefix) and resolves the log level
+ * Uses the user-facing handler and resolves the log level
  * from the environment (`NODULUS_LOG_LEVEL` / `NODE_DEBUG`).
  *
  * **Overload 2 — full control** (internal / advanced):
