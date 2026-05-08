@@ -8,6 +8,7 @@ export default defineConfig([
     sourcemap: true,
     clean: true,
     target: 'node20',
+    external: ['pino'],
   },
   {
     entry: ['src/cli/index.ts'],
@@ -16,6 +17,7 @@ export default defineConfig([
     outDir: 'dist/cli',
     sourcemap: true,
     target: 'node20',
+    external: ['pino'],
   },
   {
     entry: ['src/preload/preload-hook.ts'],
@@ -24,5 +26,6 @@ export default defineConfig([
     target: 'node20',
     minify: false,
     sourcemap: true,
+    external: ['pino'],
   }
 ]);
