@@ -133,7 +133,8 @@ export function writeShadowFile(moduleDirPath: string, record: ShadowFileRecord)
  */
 export function ensureShadowFile(
   moduleDirPath: string,
-  moduleName: string
+  moduleName: string,
+  existingId?: string
 ): ShadowFileRecord {
   const existing = readShadowFile(moduleDirPath);
   if (existing !== null) {
@@ -141,7 +142,7 @@ export function ensureShadowFile(
   }
 
   const record: ShadowFileRecord = {
-    id:        generateModuleId(),
+    id:        existingId || generateModuleId(),
     name:      moduleName,
     createdAt: new Date().toISOString(),
   };

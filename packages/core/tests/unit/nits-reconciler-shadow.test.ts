@@ -261,7 +261,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
       postReconcileEnsureShadowFiles(resultCycle1, resolvedDirs);
       cwdSpy.mockRestore();
       
-      expect(ensureSpy).toHaveBeenCalledWith("/project/src/legacy", "legacy");
+      expect(ensureSpy).toHaveBeenCalledWith("/project/src/legacy", "legacy", "mod_legacy");
 
       // CYCLE 2: The module now has a shadow file, and let's say it moves!
       const previousCycle2 = createRegistry({

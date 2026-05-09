@@ -217,7 +217,7 @@ export function postReconcileEnsureShadowFiles(
       const relPath = path.relative(process.cwd(), dirPath).replace(/\\/g, '/');
       if (relPath === record.path || dirPath === record.path) {
         // ensureShadowFile is idempotent: skips if file already valid.
-        ensureShadowFile(dirPath, name);
+        ensureShadowFile(dirPath, name, record.id);
         break;
       }
     }
