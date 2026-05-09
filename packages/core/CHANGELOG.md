@@ -5,28 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.3] - 2026-05-08
+## [1.5.3] - 2026-05-09
 
 ### Added
-- Integración interna con Pino como motor de logging
-- Soporte para salida JSON estructurada en producción (\`NODE_ENV=production\`)
-- Variable de entorno \`NODULUS_LOG_FORMAT\` (\`pretty\` | \`json\` | \`auto\`)
-- Opción \`logFormat\` en \`CreateAppOptions\` y \`nodulus.config.ts\`
-- Serializer automático de \`Error\` (\`meta.err\`) en logs estructurados
-- \`useLogger()\` ahora crea child loggers de Pino con campo \`service\` en JSON
+- Explicit export of `LogFormat` type from `index.ts` to ensure users can properly type their configurations.
+- 100% unit test coverage for the shutdown manager (`shutdown.ts`), guaranteeing correct system signal handling and `process.exit(0)`.
+- Internal integration with Pino as the logging engine.
+- Support for structured JSON output in production (\`NODE_ENV=production\`).
+- \`NODULUS_LOG_FORMAT\` environment variable (\`pretty\` | \`json\` | \`auto\`).
+- \`logFormat\` option in \`CreateAppOptions\` and \`nodulus.config.ts\`.
+- Automatic \`Error\` serialization (\`meta.err\`) in structured logs.
+- \`useLogger()\` now creates Pino child loggers with a \`service\` field in JSON output.
+
+### Removed
+- Removed the unused `createUserLogHandler` function from `logger.ts` (dead code) to prevent confusion with the correct public APIs (`useLogger` and `createLogger`).
 
 ### Changed
-- \`ESM alias hook skipped\` y \`Merged N alias(es)\` bajados de \`info\` a \`debug\`
-- \`Mounted 0 route(s)\` cambiado de \`info\` a \`warn\`
-- Timestamp en producción ahora es ISO 8601 completo (incluye fecha)
+- Downgraded \`ESM alias hook skipped\` and \`Merged N alias(es)\` logs from \`info\` to \`debug\`.
+- Changed \`Mounted 0 route(s)\` log from \`info\` to \`warn\`.
+- Production timestamps are now full ISO 8601 (including the date).
 
 ### Fixed
-- Eliminada redundancia del prefijo \`[Nodulus] info [module]\` — la info de módulo ahora va en el campo estructurado \`module\`
+- Removed redundant \`[Nodulus] info [module]\` prefix — module information is now properly structured in the \`module\` field.
 
-### Migration (v1.5.1 → v1.5.3)
-- Totalmente compatible hacia atrás. Sin breaking changes.
-- Si usabas \`LogHandler\` custom, sigue funcionando igual.
-- Si tenías scripts que parseaban la salida de consola de Nodulus, revisar el nuevo formato JSON en producción.
+### Migration (v1.5.2 → v1.5.3)
+- Fully backwards compatible. No breaking changes.
+- If you were using a custom \`LogHandler\`, it will continue to work exactly the same.
+- If you had scripts parsing Nodulus' console output, you should update them to handle the new JSON format in production.
 
 ## [1.5.2] - 2026-05-07
 
@@ -250,7 +255,7 @@ export default {
 - Renamed testing suite strings internally stripping hardcoded framework versions (`V1.0.0`) enhancing legibility.
 
 ### Deprecated
-- `ERROR_MESSAGES` en `errors.ts` ha sido marcado como deprecado y será eliminado en v2.0.0. Los mensajes reales se definen en el lugar donde se lanza la excepción.
+- `ERROR_MESSAGES` in `errors.ts` has been marked as deprecated and will be removed in v2.0.0. Actual error messages are now defined at the throw site.
 
 ### Fixed
 - Fixed bug causing misleading error mappings (`REGISTRY_MISSING_CONTEXT`) across non-express Identifiers when caller bounds fail. They correctly throw `INVALID_MODULE_DECLARATION`.
