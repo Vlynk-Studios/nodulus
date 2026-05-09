@@ -1,5 +1,4 @@
 import { pino, Logger as PinoLogger, stdSerializers } from 'pino';
-import { Writable } from 'node:stream';
 import { resolveLogLevel, resolveLogFormat } from './logger.js';
 
 let _instance: PinoLogger | null = null;

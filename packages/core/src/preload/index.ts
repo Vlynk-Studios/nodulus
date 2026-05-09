@@ -16,7 +16,6 @@ export interface PreloadConfig {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __NODULUS_PRELOAD_CONFIG__: PreloadConfig | undefined;
 }
 
