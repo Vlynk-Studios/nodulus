@@ -137,6 +137,36 @@ describe("Shadow File Identity System", () => {
         }).not.toThrow();
       });
 
+      it("returns null and logs warning if reading fails (e.g. permission denied)", () => {
+        vi.mocked(fs.existsSync).mockReturnValue(true);
+        vi.mocked(fs.readFileSync).mockImplementation(() => {
+          throw new Error("EACCES: permission denied");
+        });
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const result = readShadowFile(fakeDirPath);
+        expect(result).toBeNull();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Shadow file read error"),
+        );
+        warnSpy.mockRestore();
+      });
+
+      it("handles non-Error objects thrown during read", () => {
+        vi.mocked(fs.existsSync).mockReturnValue(true);
+        vi.mocked(fs.readFileSync).mockImplementation(() => {
+          throw "String error";
+        });
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const result = readShadowFile(fakeDirPath);
+        expect(result).toBeNull();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("String error"),
+        );
+        warnSpy.mockRestore();
+      });
+
       it("returns null and logs warning if JSON is malformed", () => {
         vi.mocked(fs.existsSync).mockReturnValue(true);
         vi.mocked(fs.readFileSync).mockReturnValue("{ invalid json");
@@ -274,6 +304,26 @@ describe("Shadow File Identity System", () => {
         warnSpy.mockRestore();
       });
 
+      it("handles non-Error objects thrown during write", () => {
+        vi.mocked(fs.existsSync).mockReturnValue(false);
+        vi.mocked(fs.writeFileSync).mockImplementation(() => {
+          throw "Write string error";
+        });
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        const record: ShadowFileRecord = {
+          id: "mod_11223344",
+          name: "test",
+          createdAt: "2024-01-01T00:00:00.000Z",
+        };
+
+        expect(() => writeShadowFile(fakeDirPath, record)).not.toThrow();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Write string error"),
+        );
+        warnSpy.mockRestore();
+      });
+
       it("writes only the v1 schema fields (strips extra fields)", () => {
         vi.mocked(fs.existsSync).mockReturnValue(false);
         const record = {
@@ -360,6 +410,33 @@ describe("Shadow File Identity System", () => {
         // fs.unlinkSync doesn't throw if missing since we mock it, but we check logic
         
         expect(() => deleteShadowFile(fakeDirPath)).not.toThrow();
+      });
+
+      it("does not throw and logs warning if deletion fails", () => {
+        vi.mocked(fs.existsSync).mockReturnValue(true);
+        vi.mocked(fs.unlinkSync).mockImplementation(() => {
+          throw new Error("EACCES: permission denied");
+        });
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        expect(() => deleteShadowFile(fakeDirPath)).not.toThrow();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Could not delete shadow file"),
+        );
+        warnSpy.mockRestore();
+      });
+      it("handles non-Error objects thrown during deletion", () => {
+        vi.mocked(fs.existsSync).mockReturnValue(true);
+        vi.mocked(fs.unlinkSync).mockImplementation(() => {
+          throw "Delete string error";
+        });
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        expect(() => deleteShadowFile(fakeDirPath)).not.toThrow();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Delete string error"),
+        );
+        warnSpy.mockRestore();
       });
     });
   });
