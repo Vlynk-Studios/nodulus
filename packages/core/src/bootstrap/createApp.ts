@@ -14,7 +14,7 @@ import { setPinoInstance, createDefaultPinoInstance } from '../core/pino-instanc
 import { performance } from 'node:perf_hooks';
 import pc from 'picocolors';
 import { extractModuleImports } from '../nits/import-scanner.js';
-import { loadNitsRegistry, saveNitsRegistry, initNitsRegistry, inferProjectName, scanShadowFiles } from '../nits/nits-store.js';
+import { loadNitsRegistry, saveNitsRegistry, initNitsRegistry, inferProjectName, scanShadowFiles, postReconcileEnsureShadowFiles } from '../nits/nits-store.js';
 import { reconcile, buildUpdatedNitsRegistry, buildNitsIdMap } from '../nits/nits-reconciler.js';
 import { reportReconciliation } from '../nits/nits-reporter.js';
 import { computeModuleHash } from '../nits/nits-hash.js';
@@ -185,6 +185,15 @@ export async function createApp(
       
       const updatedNits = buildUpdatedNitsRegistry(nitsResult, oldRegistry.project);
       await saveNitsRegistry(updatedNits, cwd);
+
+      // Step 2.5c — Write shadow files for modules resolved by path/Jaccard (migration path).
+      // Modules that arrived without a shadow file (legacy, pre-v1.5.5) now get one
+      // written with the ID assigned during reconciliation. On the next boot they will
+      // use the shadow-file path (Step 0) and bypass Jaccard entirely.
+      const resolvedDirs = new Map<string, string>(
+        resolvedModules.map(m => [m.dirPath, m.name])
+      );
+      postReconcileEnsureShadowFiles(nitsResult, resolvedDirs);
 
       // Seed the registry with the reconciled IDs
       const nitsIdMap = buildNitsIdMap(nitsResult, cwd);

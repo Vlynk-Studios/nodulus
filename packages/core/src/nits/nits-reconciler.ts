@@ -2,8 +2,7 @@ import path from 'node:path';
 import { NITS_REGISTRY_VERSION } from './constants.js';
 import { hashSimilarity } from './nits-hash.js';
 import { generateModuleId } from './nits-id.js';
-import { generateModuleId as generateShadowId } from './shadow-file.js';
-import { ensureShadowFile } from './shadow-file.js';
+import { generateModuleId as generateShadowId, deleteShadowFile, writeShadowFile } from './shadow-file.js';
 import { NodulusError } from '../core/errors.js';
 import { normalizePath } from '../core/utils/paths.js';
 import type {
@@ -136,13 +135,21 @@ export async function reconcile(
           result.confirmed.push(record);
           if (disc.identifiers.length > 0) activeHashes.set(disc.hash, record.path);
         } else {
-          // Cloned copy — assign a new ID
+          // Cloned copy — assign a new ID.
+          // Fix Critical 2: delete the duplicate .nodulus file first, then write
+          // a corrected one. Using ensureShadowFile here would be a no-op because
+          // the existing (wrong) file passes validation — causing an infinite loop
+          // of warnings on every subsequent boot.
           const newId = generateShadowId();
           console.warn(
             `[NITS] Duplicate module identity detected. "${disc.dirPath}" was assigned a new ID (${newId}). Was it copied from "${originalPath}"?`
           );
-          // Write a new shadow file with the corrected ID so next boot is clean
-          ensureShadowFile(disc.dirPath, disc.name);
+          deleteShadowFile(disc.dirPath);  // remove the cloned ID
+          writeShadowFile(disc.dirPath, {  // write the corrected ID
+            id: newId,
+            name: disc.name,
+            createdAt: new Date().toISOString(),
+          });
           const record = createRecord(newId, disc, 'active', 'shadow-file');
           usedIds.add(newId);
           result.newModules.push(record);
