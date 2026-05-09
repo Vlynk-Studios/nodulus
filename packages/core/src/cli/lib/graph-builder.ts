@@ -24,6 +24,8 @@ export interface ModuleNode extends BaseNode {
   id?: string;
   domain?: string;
   submodules?: string[];
+  /** How identity was resolved in the last NITS reconciliation cycle. @since v1.5.5 */
+  resolvedBy?: 'shadow-file' | 'path' | 'jaccard';
 }
 
 export interface SubModuleNode extends BaseNode {
