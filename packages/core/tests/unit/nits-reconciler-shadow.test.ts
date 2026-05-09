@@ -218,4 +218,177 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
     expect(result.moved[0].record.resolvedBy).toBe("jaccard"); // Resolved by Step 2
     expect(result.moved[0].newPath).toBe("src/new-payments");
   });
+
+  describe("Migration & 2-Cycle Scenarios", () => {
+    it("Migration: 2-cycle test - legacy module gets shadow file and uses it on next boot", async () => {
+      // Import the post-reconcile function to test the full migration lifecycle
+      const { postReconcileEnsureShadowFiles } = await import("../../src/nits/nits-store.js");
+      const ensureSpy = vi.spyOn(await import("../../src/nits/shadow-file.js"), "ensureShadowFile");
+
+      // CYCLE 1: Legacy registry and module with NO shadow file
+      const previousCycle1 = createRegistry({
+        mod_legacy: {
+          id: "mod_legacy",
+          name: "legacy",
+          path: "src/legacy",
+          hash: "hash_legacy",
+          status: "active",
+          createdAt: timestamp,
+          lastSeen: "",
+          identifiers: ["LegacyId"],
+        },
+      });
+
+      const discoveredCycle1: DiscoveredModule[] = [
+        {
+          name: "legacy",
+          dirPath: "/project/src/legacy",
+          identifiers: ["LegacyId"],
+          hash: "hash_legacy",
+          shadowFile: undefined, // No shadow file yet!
+        },
+      ];
+
+      const resultCycle1 = await reconcile(discoveredCycle1, previousCycle1, cwd);
+      
+      // Legacy module is confirmed via path (resolvedBy: 'path')
+      expect(resultCycle1.confirmed.length).toBe(1);
+      expect(resultCycle1.confirmed[0].resolvedBy).toBe("path");
+
+      // Post-reconcile: the scanner should generate the shadow file
+      const resolvedDirs = new Map([["/project/src/legacy", "legacy"]]);
+      const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/project");
+      postReconcileEnsureShadowFiles(resultCycle1, resolvedDirs);
+      cwdSpy.mockRestore();
+      
+      expect(ensureSpy).toHaveBeenCalledWith("/project/src/legacy", "legacy");
+
+      // CYCLE 2: The module now has a shadow file, and let's say it moves!
+      const previousCycle2 = createRegistry({
+        mod_legacy: resultCycle1.confirmed[0], // Output of cycle 1 is input to cycle 2
+      });
+
+      const discoveredCycle2: DiscoveredModule[] = [
+        {
+          name: "legacy",
+          dirPath: "/project/src/new-legacy-path", // Moved!
+          identifiers: [], // Completely changed identifiers
+          hash: "hash_new",
+          shadowFile: { id: "mod_legacy", name: "legacy", createdAt: timestamp }, // Now has shadow file!
+        },
+      ];
+
+      // Jaccard similarity is 0, path changed -> normally it would fail and be a newModule
+      vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.0);
+
+      const resultCycle2 = await reconcile(discoveredCycle2, previousCycle2, cwd);
+
+      // Successfully resolved via shadow file!
+      expect(resultCycle2.moved.length).toBe(1);
+      expect(resultCycle2.moved[0].record.id).toBe("mod_legacy");
+      expect(resultCycle2.moved[0].record.resolvedBy).toBe("shadow-file");
+      
+      ensureSpy.mockRestore();
+    });
+  });
+
+  describe("Backward Compatibility", () => {
+    it("Works transparently with previous records missing shadow file info", async () => {
+      // NitsModuleRecord only has 'id', not 'shadowFileId'. This test just verifies
+      // that if ALL discovered modules have NO shadow file, the system acts exactly like pre-v1.5.1
+      const previous = createRegistry({
+        mod_a: { id: "mod_a", name: "a", path: "src/a", hash: "h1", status: "active", createdAt: timestamp, lastSeen: "", identifiers: ["A"] },
+        mod_b: { id: "mod_b", name: "b", path: "src/b", hash: "h2", status: "active", createdAt: timestamp, lastSeen: "", identifiers: ["B"] },
+      });
+
+      const discovered: DiscoveredModule[] = [
+        { name: "a", dirPath: "/project/src/a", identifiers: ["A"], hash: "h1", shadowFile: undefined },
+        { name: "b", dirPath: "/project/src/b", identifiers: ["B"], hash: "h2", shadowFile: undefined },
+      ];
+
+      const result = await reconcile(discovered, previous, cwd);
+
+      expect(result.confirmed.length).toBe(2);
+      expect(result.confirmed[0].resolvedBy).toBe("path");
+      expect(result.confirmed[1].resolvedBy).toBe("path");
+      expect(result.moved.length).toBe(0);
+      expect(result.newModules.length).toBe(0);
+    });
+  });
+
+  describe("Edge Cases", () => {
+    it("Module with corrupt shadowFile (readShadowFile returned null) falls back to Jaccard", async () => {
+      const previous = createRegistry({
+        mod_x: { id: "mod_x", name: "x", path: "src/old-x", hash: "h_old", status: "active", createdAt: timestamp, lastSeen: "", identifiers: ["X"] },
+      });
+
+      const discovered: DiscoveredModule[] = [
+        {
+          name: "x",
+          dirPath: "/project/src/new-x",
+          identifiers: ["X"], // Keeps identifiers
+          hash: "h_new",
+          shadowFile: undefined, // Simulating scanShadowFiles filtering out corrupt file
+        },
+      ];
+
+      vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.99);
+
+      const result = await reconcile(discovered, previous, cwd);
+
+      // Falls through to Jaccard and moves successfully
+      expect(result.moved.length).toBe(1);
+      expect(result.moved[0].record.resolvedBy).toBe("jaccard");
+      expect(result.moved[0].record.id).toBe("mod_x");
+    });
+
+    it("All modules move in the same cycle — none become stale if they have Shadow Files", async () => {
+      const previous = createRegistry({
+        m1: { id: "m1", name: "m1", path: "src/a", hash: "h1", status: "active", createdAt: timestamp, lastSeen: "", identifiers: ["1"] },
+        m2: { id: "m2", name: "m2", path: "src/b", hash: "h2", status: "active", createdAt: timestamp, lastSeen: "", identifiers: ["2"] },
+      });
+
+      const discovered: DiscoveredModule[] = [
+        { name: "m1", dirPath: "/project/src/new/a", identifiers: ["1"], hash: "hx", shadowFile: { id: "m1", name: "m1", createdAt: timestamp } },
+        { name: "m2", dirPath: "/project/src/new/b", identifiers: ["2"], hash: "hy", shadowFile: { id: "m2", name: "m2", createdAt: timestamp } },
+      ];
+
+      const result = await reconcile(discovered, previous, cwd);
+
+      expect(result.moved.length).toBe(2);
+      expect(result.moved[0].record.resolvedBy).toBe("shadow-file");
+      expect(result.moved[1].record.resolvedBy).toBe("shadow-file");
+      expect(result.stale.length).toBe(0);
+      expect(result.newModules.length).toBe(0);
+    });
+
+    it("Shadow File name is NOT authoritative for the module name or path, only the ID is", async () => {
+      const previous = createRegistry({
+        mod_target: { id: "mod_target", name: "old_name", path: "src/target", hash: "h", status: "active", createdAt: timestamp, lastSeen: "", identifiers: ["1"] },
+      });
+
+      const discovered: DiscoveredModule[] = [
+        {
+          name: "real_folder_name", // Actual directory name
+          dirPath: "/project/src/real_folder_name", // Actual path
+          identifiers: ["1"],
+          hash: "h",
+          // The shadow file contains outdated or mismatched name metadata
+          shadowFile: { id: "mod_target", name: "completely_wrong_name", createdAt: timestamp },
+        },
+      ];
+
+      const result = await reconcile(discovered, previous, cwd);
+
+      // Should be matched correctly by ID
+      expect(result.moved.length).toBe(1);
+      expect(result.moved[0].record.id).toBe("mod_target");
+      expect(result.moved[0].record.resolvedBy).toBe("shadow-file");
+      
+      // The authoritative name comes from the DiscoveredModule (which is the directory name)
+      // NOT the shadow file metadata.
+      expect(result.moved[0].record.name).toBe("real_folder_name");
+      expect(result.moved[0].record.name).not.toBe("completely_wrong_name");
+    });
+  });
 });
