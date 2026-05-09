@@ -35,12 +35,21 @@ describe("Shadow File Identity System", () => {
       expect(isShadowFileRecord(null)).toBe(false);
       expect(isShadowFileRecord(undefined)).toBe(false);
       expect(isShadowFileRecord("string")).toBe(false);
+      expect(isShadowFileRecord(1234)).toBe(false); // test number
       expect(isShadowFileRecord({})).toBe(false);
+
+      // Missing ID
+      expect(
+        isShadowFileRecord({
+          name: "users",
+          createdAt: "2024-01-01T12:00:00Z",
+        }),
+      ).toBe(false);
 
       // Invalid ID
       expect(
         isShadowFileRecord({
-          id: "mod_invalid", // not 8 hex chars
+          id: "invalid_format", // not 8 hex chars
           name: "users",
           createdAt: "2024-01-01T12:00:00Z",
         }),
@@ -50,6 +59,15 @@ describe("Shadow File Identity System", () => {
       expect(
         isShadowFileRecord({
           id: "mod_a1b2c3d4",
+          createdAt: "2024-01-01T12:00:00Z",
+        }),
+      ).toBe(false);
+
+      // Empty name
+      expect(
+        isShadowFileRecord({
+          id: "mod_a1b2c3d4",
+          name: "",
           createdAt: "2024-01-01T12:00:00Z",
         }),
       ).toBe(false);
@@ -218,7 +236,7 @@ describe("Shadow File Identity System", () => {
 
       it("does not overwrite an existing valid file", () => {
         const existingRecord: ShadowFileRecord = {
-          id: "mod_old12345",
+          id: "mod_00001234",
           name: "test",
           createdAt: "2023-01-01T00:00:00.000Z",
         };
@@ -296,21 +314,22 @@ describe("Shadow File Identity System", () => {
         expect(fs.writeFileSync).not.toHaveBeenCalled(); // No rewrite needed
       });
 
-      it("creates a new record and writes it if file is missing", () => {
+      it("creates a new record and writes it if file is missing (validating name and ISO date)", () => {
         vi.mocked(fs.existsSync).mockReturnValue(false);
 
         const result = ensureShadowFile(fakeDirPath, "new_module");
 
         expect(result.id).toMatch(/^mod_[0-9a-f]{8}$/);
         expect(result.name).toBe("new_module");
-        expect(result.createdAt).toBeDefined();
+        // ISO 8601 validation
+        expect(new Date(result.createdAt).toISOString()).toBe(result.createdAt);
 
         expect(fs.writeFileSync).toHaveBeenCalled();
         const writtenContent = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
         expect(JSON.parse(writtenContent)).toEqual(result);
       });
 
-      it("overwrites invalid file with a fresh record", () => {
+      it("generates new ID, overwrites invalid file and returns fresh record", () => {
         vi.mocked(fs.existsSync).mockReturnValue(true);
         vi.mocked(fs.readFileSync).mockReturnValue("{ bad JSON");
         vi.spyOn(console, "warn").mockImplementation(() => {}); // Suppress warning from read
@@ -318,7 +337,12 @@ describe("Shadow File Identity System", () => {
         const result = ensureShadowFile(fakeDirPath, "corrupted_module");
 
         expect(result.id).toMatch(/^mod_[0-9a-f]{8}$/);
+        expect(result.name).toBe("corrupted_module");
         expect(fs.writeFileSync).toHaveBeenCalled();
+        
+        // Assert it wrote the new record
+        const writtenContent = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
+        expect(JSON.parse(writtenContent)).toEqual(result);
       });
     });
 
