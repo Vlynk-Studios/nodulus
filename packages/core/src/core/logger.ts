@@ -55,16 +55,6 @@ export function resolveLogFormat(explicit?: import('../types/index.js').LogForma
   return process.env.NODE_ENV === 'production' ? 'json' : 'pretty';
 }
 
-/**
- * Creates a log handler specifically for user applications.
- */
-export function createUserLogHandler(name: string): LogHandler {
-  return (level, rawMessage, meta) => {
-    const pinoLog = getPinoInstance();
-    const { _module, ...cleanMeta } = meta ?? {};
-    pinoLog[level]({ name, module: _module, ...cleanMeta }, rawMessage);
-  };
-}
 
 /**
  * Creates a configured Logger instance for user applications.
