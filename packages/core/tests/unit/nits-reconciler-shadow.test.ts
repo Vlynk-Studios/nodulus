@@ -73,7 +73,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
     expect(nitsHash.hashSimilarity).not.toHaveBeenCalled();
   });
 
-  it("Step 0: Matches by shadow file ID (moved, different path)", async () => {
+  it("Step 0: Matches by shadow file ID (moved, different path) updates name and ignores identifiers", async () => {
     const previous = createRegistry({
       mod_1: {
         id: "mod_1",
@@ -83,15 +83,15 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         status: "active",
         createdAt: timestamp,
         lastSeen: "",
-        identifiers: ["User"],
+        identifiers: ["OldUserEntity", "OldUserRepo"],
       },
     });
 
     const discovered: DiscoveredModule[] = [
       {
-        name: "users",
-        dirPath: "/project/src/new-users",
-        identifiers: ["User"],
+        name: "auth-users", // Name changed!
+        dirPath: "/project/src/domains/auth/users", // Path changed!
+        identifiers: ["NewAuthEntity", "NewAuthRepo"], // Identifiers completely changed!
         hash: "new_hash",
         shadowFile: { id: "mod_1", name: "users", createdAt: timestamp },
       },
@@ -102,7 +102,9 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
     expect(result.moved.length).toBe(1);
     expect(result.moved[0].record.id).toBe("mod_1");
     expect(result.moved[0].record.resolvedBy).toBe("shadow-file");
-    expect(result.moved[0].newPath).toBe("src/new-users");
+    expect(result.moved[0].oldPath).toBe("src/old-users");
+    expect(result.moved[0].newPath).toBe("src/domains/auth/users");
+    expect(result.moved[0].record.name).toBe("auth-users"); // Name updated
   });
 
   it("Step 0: Module has shadow file but ID not in registry -> registered as new with that ID", async () => {
@@ -182,35 +184,38 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
     warnSpy.mockRestore();
   });
 
-  it("Legacy behavior: falls through to path/jaccard when shadowFile is missing", async () => {
+  it("Legacy behavior: falls through to Jaccard when shadowFile is missing and path changes", async () => {
     const previous = createRegistry({
       mod_2: {
         id: "mod_2",
         name: "payments",
-        path: "src/payments",
+        path: "src/old-payments",
         hash: "hash1",
         status: "active",
         createdAt: timestamp,
         lastSeen: "",
-        identifiers: ["Payment"],
+        identifiers: ["Payment", "Stripe", "PayPal"],
       },
     });
 
     const discovered: DiscoveredModule[] = [
       {
         name: "payments",
-        dirPath: "/project/src/payments",
-        identifiers: ["Payment"],
+        dirPath: "/project/src/new-payments", // Different path
+        identifiers: ["Payment", "Stripe", "PayPal"], // Identical identifiers
         hash: "hash2", // hash changed
         shadowFile: undefined, // Legacy!
       },
     ];
 
-    // Same path -> matches Step 1
+    // Setup jaccard mock to return high similarity
+    vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.95);
+
     const result = await reconcile(discovered, previous, cwd);
 
-    expect(result.confirmed.length).toBe(1);
-    expect(result.confirmed[0].id).toBe("mod_2");
-    expect(result.confirmed[0].resolvedBy).toBe("path"); // Resolved by Step 1, not Step 0
+    expect(result.moved.length).toBe(1);
+    expect(result.moved[0].record.id).toBe("mod_2");
+    expect(result.moved[0].record.resolvedBy).toBe("jaccard"); // Resolved by Step 2
+    expect(result.moved[0].newPath).toBe("src/new-payments");
   });
 });
