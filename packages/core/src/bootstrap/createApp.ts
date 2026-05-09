@@ -21,6 +21,7 @@ import { computeModuleHash } from '../nits/nits-hash.js';
 import { normalizePath } from '../core/utils/paths.js';
 import { registerShutdown } from '../core/shutdown.js';
 import type { DiscoveredModule } from '../types/nits.js';
+import { readShadowFile } from '../nits/shadow-file.js';
 
 export async function createApp(
   app: Application,
@@ -158,12 +159,14 @@ export async function createApp(
       const discovered: DiscoveredModule[] = [];
       for (const mod of resolvedModules) {
         const { hash, identifiers } = await computeModuleHash(mod.dirPath);
+        const shadowFile = readShadowFile(mod.dirPath) ?? undefined;
         discovered.push({
           name: mod.name,
           dirPath: mod.dirPath,
           domain: undefined, // Reserved for v2.0 (Domains are not supported in v1.x)
           identifiers,
-          hash
+          hash,
+          shadowFile,
         });
       }
 

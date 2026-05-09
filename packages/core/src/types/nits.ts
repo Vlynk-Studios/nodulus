@@ -6,8 +6,15 @@ export interface DiscoveredModule {
   domain?: string;         // Reserved for v2.0.0 (Domain-driven architecture). Always undefined in v1.x.
   identifiers: string[];   // names extracted by nits-hash
   hash: string;
+  /**
+   * Identity record read from the `.nodulus` shadow file at the module root.
+   * Present when the module was created with Nodulus ≥ v1.5.5 or after the first
+   * reconciliation that writes the shadow file.
+   * `undefined` for legacy modules (created before v1.5.5) — Jaccard is used as fallback.
+   * @since v1.5.5
+   */
+  shadowFile?: import('../nits/shadow-file.types.js').ShadowFileRecord;
 }
-
 export interface NitsModuleRecord {
   id: string;          // "mod_8f2a9b1c" — unique persistent identifier
   name: string;        // current module name
