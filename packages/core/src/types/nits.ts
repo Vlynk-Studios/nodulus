@@ -15,6 +15,7 @@ export interface DiscoveredModule {
    */
   shadowFile?: import('../nits/shadow-file.types.js').ShadowFileRecord;
 }
+
 export interface NitsModuleRecord {
   id: string;          // "mod_8f2a9b1c" — unique persistent identifier
   name: string;        // current module name
@@ -25,6 +26,15 @@ export interface NitsModuleRecord {
   createdAt: string;   // ISO 8601 timestamp (immutable)
   lastSeen: string;    // ISO 8601 timestamp
   identifiers: string[];
+  /**
+   * How identity was resolved for this record in the last reconciliation cycle.
+   * - `'shadow-file'` — matched via `.nodulus` ID (highest confidence).
+   * - `'path'`        — matched via exact directory path (Step 1 / Jaccard fallback).
+   * - `'jaccard'`     — matched via AST hash similarity (Step 2 / Step 3).
+   * Optional so existing registry records without this field remain valid.
+   * @since v1.5.5
+   */
+  resolvedBy?: 'shadow-file' | 'path' | 'jaccard';
 }
 
 export interface ReconcileOptions {
