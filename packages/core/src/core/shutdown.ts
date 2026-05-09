@@ -73,11 +73,18 @@ export function registerShutdown(options: ShutdownManagerOptions): () => Promise
     process.exit(0);
   };
 
-  // ─── Signal registration ──────────────────────────────────────────────────
+  // ─── Signal & IPC registration ────────────────────────────────────────────
   // Both signals call the same `shutdown` function.
   // The guard ensures only one invocation actually runs.
   process.on('SIGINT',  shutdown);
   process.on('SIGTERM', shutdown);
+  
+  // Windows-compatible IPC shutdown (used by nodulus dev watcher)
+  process.on('message', (msg) => {
+    if (msg === 'nodulus:shutdown') {
+      shutdown();
+    }
+  });
 
   return shutdown;
 }

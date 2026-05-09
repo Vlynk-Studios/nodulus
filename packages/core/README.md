@@ -181,8 +181,9 @@ createApp(app: Application, options?: CreateAppOptions): Promise<NodulusApp>
 | `aliases` | `Record<string, string>` | `{}` | Folder or file aliases beyond the auto-generated `@modules/*` |
 | `strict` | `boolean` | `true` in dev | Enables circular-dependency detection and undeclared-import errors |
 | `resolveAliases` | `boolean` | `true` | Disable if you resolve aliases with a bundler |
-| `logger` | `LogHandler` | built-in | Custom log handler (supports Pino, Winston, etc.) |
+| `logger` | `LogHandler` | built-in | Custom log handler |
 | `logLevel` | `LogLevel` | `'info'` | Minimum severity for log events |
+| `logFormat` | `'pretty' \| 'json' \| 'auto'` | `'auto'` | Format of the output logs |
 | `nits` | `NitsConfig` | `{ enabled: true }` | NITS identity tracking configuration |
 | `requirePreloader` | `boolean` | `false` | _(v1.5.0+)_ If `true`, `createApp()` throws `PRELOADER_REQUIRED` when the runtime pre-loader is not active |
 | `onShutdown` | `() => void \| Promise<void>` | `undefined` | _(v1.5.0+)_ Async cleanup hook invoked after the HTTP server closes and before the process exits. Use for DB connections, queues, file handles, etc. |
@@ -412,6 +413,8 @@ const config: NodulusConfig = {
   modules: 'src/modules/*',
   prefix: '/api/v1',
   strict: process.env.NODE_ENV !== 'production',
+  logLevel: 'debug',
+  logFormat: 'pretty',
   aliases: {
     '@config':     './src/config',
     '@middleware': './src/middleware',
@@ -563,6 +566,66 @@ Nodulus Architecture Analysis
 
 ---
 
+## Logging _(v1.5.3+)_
+
+Nodulus uses a high-performance Pino logging engine internally, providing beautiful console output during development and highly structured JSON data for production observability.
+
+### Environment Variables
+
+| Variable | Description |
+|---|---|
+| `NODULUS_LOG_LEVEL` | Minimum severity to output (`debug`, `info`, `warn`, `error`, `fatal`). Default: `info`. |
+| `NODULUS_LOG_FORMAT` | Forces the output format. Allowed values: `pretty` \| `json` \| `auto`. Default is `auto` (uses `json` if `NODE_ENV=production`, otherwise `pretty`). |
+
+> **Note:** You can set `NODULUS_LOG_FORMAT=pretty` to force human-readable output even in staging environments where `NODE_ENV=production` might be set.
+
+### User-space Logger (`useLogger`)
+
+You can create context-aware child loggers for your own modules. This keeps your application logs visually identical to the framework logs and inherits global settings automatically.
+
+**Development Output (`logFormat: 'pretty'`):**
+```ts
+import { useLogger } from '@vlynk-studios/nodulus-core';
+
+const log = useLogger('my-app');
+log.info('Connecting to database...'); 
+// 19:15:30.123  [my-app]  INFO  Connecting to database...
+```
+
+**Production Output (`logFormat: 'json'`):**
+```json
+{"level":"info","time":"2026-05-08T22:15:30.123Z","service":"my-app","msg":"Connecting to database..."}
+```
+
+If you pass an `Error` object under the `err` or `error` key in the meta object, Nodulus automatically serializes the full stack trace in JSON mode:
+```ts
+log.error('Database connection failed', { err: new Error('Timeout') });
+```
+
+### Custom Transports (Loki, Datadog, etc.)
+
+If you need to stream logs directly to external providers using Pino transports instead of stdout, you can wrap a custom Pino instance and pass it via `nodulus.config.ts`:
+
+```ts
+// nodulus.config.ts
+import pino from 'pino';
+
+// Define your external transport (e.g., Datadog, Loki, Axiom)
+const externalPino = pino({
+  transport: {
+    target: 'pino-datadog-transport',
+    options: { ddClientConf: { authMethods: { apiKeyAuth: '...' } } }
+  }
+});
+
+export default {
+  // Redirect all Nodulus internal logs to your custom Pino instance
+  logger: (level, msg, meta) => externalPino[level](meta || {}, msg)
+};
+```
+
+---
+
 ## ESLint Plugin
 
 > **Available from v1.3.0** · Package: `@vlynk-studios/eslint-plugin-nodulus`
@@ -672,11 +735,14 @@ Nodulus emits structured, color-coded log events throughout the bootstrap pipeli
 
 ### Default behavior
 
-| Environment | Default level | Output |
-|---|---|---|
-| Development | `info` | Modules loading, routes mounting, startup duration |
-| Any | `warn` / `error` | Written to `stderr`; everything else to `stdout` |
-| Debug | `debug` | Set `logLevel: 'debug'` in options, or use `NODULUS_LOG_LEVEL=debug` or `NODE_DEBUG=nodulus` |
+Nodulus uses a high-performance **Pino** singleton internally. It automatically adapts to the environment:
+- **Development**: Outputs human-readable, colorized logs via `pino-pretty`.
+- **Production**: Outputs structured JSON logs (NDJSON).
+
+| Environment Variable | Description |
+|---|---|
+| `NODULUS_LOG_LEVEL` | Minimum severity. E.g., `debug`, `info`, `warn`. (Or use `NODE_DEBUG=nodulus`) |
+| `NODULUS_LOG_FORMAT` | Format output. `pretty` forces colorized text, `json` forces structured JSON, `auto` detects by environment. |
 
 ### Semantic levels
 

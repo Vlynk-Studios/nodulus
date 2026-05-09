@@ -66,7 +66,7 @@ describe('Pre-loader Integration (preloader.test.ts)', () => {
 
       expect(result.stdout).toContain('MSG:Hello from Alias');
       expect(result.stdout).toContain('PRELOADER_ACTIVE:true');
-      expect(result.stderr).not.toContain('Pre-loader not detected');
+      expect(result.stdout).not.toContain('Pre-loader not detected');
       
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -86,7 +86,7 @@ describe('Pre-loader Integration (preloader.test.ts)', () => {
 
       const result = spawnSync('node', ['main.js'], { cwd: tmpDir, encoding: 'utf8' });
 
-      expect(result.stderr).toContain('Pre-loader not detected. Alias resolution might fail');
+      expect(result.stdout).toContain('Pre-loader not detected. Alias resolution might fail');
       expect(result.stdout).toContain('PRELOADER_ACTIVE:false');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });

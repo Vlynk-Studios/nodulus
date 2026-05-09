@@ -9,7 +9,8 @@ import { NodulusError } from '../core/errors.js';
 import { createRegistry, registryContext } from '../core/registry.js';
 import { activateAliasResolver } from '../aliases/resolver.js';
 import { updateAliasCache } from '../aliases/cache.js';
-import { createLogger } from '../core/logger.js';
+import { createLogger, defaultLogHandler } from '../core/logger.js';
+import { setPinoInstance, createDefaultPinoInstance } from '../core/pino-instance.js';
 import { performance } from 'node:perf_hooks';
 import pc from 'picocolors';
 import { extractModuleImports } from '../nits/import-scanner.js';
@@ -74,6 +75,9 @@ export async function createApp(
 
   // Step 1 — Load configuration
   const config = await loadConfig(options);
+  if (config.logger === defaultLogHandler) {
+    setPinoInstance(createDefaultPinoInstance(config.logFormat, config.logLevel));
+  }
   const log = createLogger(config.logger, config.logLevel, 'boot');
 
   // Step 1.1 — Pre-loader Warnings
@@ -103,10 +107,10 @@ export async function createApp(
   }
 
   log.info('Bootstrap started', {
-    modules: pc.cyan(config.modules),
-    prefix: pc.cyan(config.prefix || '(none)'),
-    strict: pc.yellow(String(config.strict)),
-    nodeVersion: pc.gray(process.version),
+    modules: config.modules,
+    prefix: config.prefix || '(none)',
+    strict: config.strict,
+    nodeVersion: process.version,
   });
 
   // Step 2 — Resolve modules
@@ -415,19 +419,23 @@ export async function createApp(
     cwd: process.cwd(),
     ignore: ['**/*.types.*', '**/*.d.ts', '**/*.spec.*', '**/*.test.*']
   });
-
   const controllerFilesByModule = new Map<string, string[]>();
   for (const mod of allModules) {
     controllerFilesByModule.set(mod.name, []);
   }
   
   for (const file of allControllerFiles) {
+    const normalizedFile = normalizePath(file);
     for (const mod of allModules) {
       const rawMod = registry.getRawModule(mod.name);
       if (!rawMod) continue;
-      if (file.startsWith(rawMod.path + path.sep) || file.startsWith(rawMod.path + '/')) {
+      
+      const normalizedModPath = normalizePath(rawMod.path);
+      const normalizedIndexPath = normalizePath(rawMod.indexPath);
+      
+      if (normalizedFile.startsWith(normalizedModPath + '/')) {
         // Exclude the module's main index file
-        if (file === rawMod.indexPath) continue;
+        if (normalizedFile === normalizedIndexPath) continue;
         controllerFilesByModule.get(mod.name)?.push(file);
         break;
       }
@@ -556,11 +564,22 @@ export async function createApp(
 
     const safeRegisteredModules = allModules.map(m => registry.getModule(m.name)!);
     const durationMs = Math.round(performance.now() - startTime);
-    log.info(`${pc.green('Bootstrap complete')} — ${pc.cyan(allModules.length)} module(s), ${pc.cyan(mountedRoutes.length)} route(s) in ${pc.yellow(`${durationMs}ms`)}`, {
-      moduleCount: allModules.length,
-      routeCount: mountedRoutes.length,
-      durationMs,
-    });
+    
+    if (mountedRoutes.length === 0) {
+      log.warn('Mounted 0 route(s) — no controllers were registered. Is this expected?', { _module: 'router' });
+      log.warn(`${pc.yellow('Bootstrap complete')} — ${pc.cyan(allModules.length)} module(s), ${pc.yellow(mountedRoutes.length)} route(s) in ${pc.yellow(`${durationMs}ms`)}`, {
+        moduleCount: allModules.length,
+        routeCount: mountedRoutes.length,
+        durationMs,
+      });
+    } else {
+      log.info(`Mounted ${mountedRoutes.length} route(s)`, { _module: 'router' });
+      log.info(`${pc.green('Bootstrap complete')} — ${pc.cyan(allModules.length)} module(s), ${pc.cyan(mountedRoutes.length)} route(s) in ${pc.yellow(`${durationMs}ms`)}`, {
+        moduleCount: allModules.length,
+        routeCount: mountedRoutes.length,
+        durationMs,
+      });
+    }
 
     return {
       modules: safeRegisteredModules,

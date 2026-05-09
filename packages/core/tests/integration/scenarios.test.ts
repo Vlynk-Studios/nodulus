@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createApp } from "../../src/bootstrap/createApp.js";
 import { NodulusError } from "../../src/core/errors.js";
 import { loadNitsRegistry } from "../../src/nits/nits-store.js";
+import * as pinoModule from "../../src/core/pino-instance.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -919,6 +920,116 @@ describe("Integration Tests", () => {
               call[1].includes("but it is not declared in imports[]"),
           );
           expect(undeclaredWarns).toHaveLength(0);
+        },
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Semantic Log Levels Integration
+  // -----------------------------------------------------------------------
+  describe("Semantic Log Levels Integration", () => {
+    let pinoMock: any;
+    let createDefaultPinoSpy: any;
+
+    beforeEach(() => {
+      pinoMock = {
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+        error: vi.fn(),
+        fatal: vi.fn(),
+        child: vi.fn().mockReturnThis(),
+      };
+      
+      // Inject our mock. createApp() calls createDefaultPinoInstance() when config loads,
+      // so we mock it to return our pinoMock.
+      createDefaultPinoSpy = vi.spyOn(pinoModule, 'createDefaultPinoInstance').mockReturnValue(pinoMock);
+      pinoModule.setPinoInstance(pinoMock);
+    });
+
+    afterEach(() => {
+      createDefaultPinoSpy.mockRestore();
+    });
+
+    it("verifies that bootstrap with 0 routes emits warn (not info) with alert message", async () => {
+      await runInTmpApp(
+        {
+          "nodulus.config.js": "export default { strict: false };",
+          "src/modules/noroutes/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('noroutes');
+        `,
+        },
+        async (_, app) => {
+          await createApp(app as any);
+
+          // Find calls to warn
+          const warnCalls = pinoMock.warn.mock.calls;
+          
+          // Verify 0 routes warning was emitted
+          const zeroRoutesWarn = warnCalls.find((call: any[]) => 
+            call[0] && 
+            typeof call[0] === 'object' && 
+            call[0].module === 'router' && 
+            typeof call[1] === 'string' &&
+            call[1].includes('Mounted 0 route(s)')
+          );
+          expect(zeroRoutesWarn).toBeDefined();
+          
+          // Verify Bootstrap complete summary warning
+          const bootstrapCompleteWarn = warnCalls.find((call: any[]) => 
+            call[0] && 
+            typeof call[0] === 'object' && 
+            call[0].module === 'boot' && 
+            typeof call[1] === 'string' &&
+            call[1].includes('Bootstrap complete') && 
+            call[0] && call[0].routeCount === 0 && call[0].moduleCount === 1
+          );
+          expect(bootstrapCompleteWarn).toBeDefined();
+        },
+      );
+    });
+
+    it("verifies that ESM alias hook skipped emits at debug level (not visible with logLevel: info)", async () => {
+      await runInTmpApp(
+        {
+          "nodulus.config.js": "export default { strict: false, logLevel: 'debug' };",
+          "src/modules/dummy/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('dummy');
+        `,
+        },
+        async (_, app) => {
+          // preloaded is true, so the alias hook should be skipped
+          (globalThis as any).__NODULUS_PRELOAD_CONFIG__ = { preloaded: true, aliases: {} };
+
+          await createApp(app as any);
+
+          const debugCalls = pinoMock.debug.mock.calls;
+          const infoCalls = pinoMock.info.mock.calls;
+
+          // Check it was emitted as debug
+          const aliasSkippedDebug = debugCalls.find((call: any[]) => 
+            call[0] && 
+            typeof call[0] === 'object' && 
+            call[0].module === 'alias' && 
+            typeof call[1] === 'string' &&
+            call[1].includes('ESM alias hook skipped')
+          );
+          expect(aliasSkippedDebug).toBeDefined();
+
+          // Check it was NOT emitted as info
+          const aliasSkippedInfo = infoCalls.find((call: any[]) => 
+            call[0] && 
+            typeof call[0] === 'object' && 
+            call[0].module === 'alias' && 
+            typeof call[1] === 'string' &&
+            call[1].includes('ESM alias hook skipped')
+          );
+          expect(aliasSkippedInfo).toBeUndefined();
+
+          delete (globalThis as any).__NODULUS_PRELOAD_CONFIG__;
         },
       );
     });

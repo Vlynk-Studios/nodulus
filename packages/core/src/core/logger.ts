@@ -1,5 +1,5 @@
-import pc from 'picocolors';
 import type { LogLevel, LogHandler, Logger } from '../types/index.js';
+import { getPinoInstance } from './pino-instance.js';
 
 const LEVEL_ORDER: Record<LogLevel, number> = {
   debug: 0,
@@ -8,61 +8,16 @@ const LEVEL_ORDER: Record<LogLevel, number> = {
   error: 3,
 };
 
-const LEVEL_STYLE: Record<LogLevel, (msg: string) => string> = {
-  debug: (msg) => pc.gray(msg),
-  info:  (msg) => pc.cyan(msg),
-  warn:  (msg) => pc.yellow(msg),
-  error: (msg) => pc.red(msg),
-};
-
 /**
- * Default log handler. Writes to process.stdout (info/debug) or process.stderr (warn/error).
- * All lines are prefixed with [Nodulus].
+ * Default log handler. Delegates to internal Pino instance.
  */
 export const defaultLogHandler: LogHandler = (level, rawMessage, meta) => {
-  const prefix = pc.gray('[Nodulus]');
-  
-  // Pad level to 5 chars: 'info ', 'warn ', 'debug', 'error'
-  const paddedLevel = level.padEnd(5);
-  // Keep original level colors for the label to maintain visual hierarchy
-  const coloredLabel = LEVEL_STYLE[level](paddedLevel);
+  const pinoLog = getPinoInstance();
 
-  let moduleName = '';
-  let message = rawMessage;
+  // Separar _module del resto del meta para no contaminar el log estructurado
+  const { _module, ...cleanMeta } = meta ?? {};
 
-  // Read context from meta._module if present
-  if (meta && typeof meta._module === 'string') {
-    moduleName = `[${meta._module}]`;
-  } else {
-    // Fallback: Parse [module] context from the message for internal logs
-    const match = rawMessage.match(/^\[([^\]]+)\]\s*(.*)/);
-    if (match) {
-      moduleName = `[${match[1]}]`;
-      message = match[2];
-    }
-  }
-
-  // Pad module to 10 chars. If empty, it becomes 10 spaces.
-  const paddedModule = moduleName.padEnd(10);
-  const coloredModule = pc.dim(paddedModule);
-
-  // Color the message based on the level
-  let coloredMessage = message;
-  switch (level) {
-    case 'debug': coloredMessage = pc.gray(message); break;
-    case 'info':  coloredMessage = message; /* default */ break;
-    case 'warn':  coloredMessage = pc.yellow(message); break;
-    case 'error': coloredMessage = pc.red(message); break;
-  }
-
-  // Format line: [Nodulus] LEVEL  [module]    message
-  const line = `${prefix} ${coloredLabel}  ${coloredModule} ${coloredMessage}`;
-  
-  if (level === 'warn' || level === 'error') {
-    process.stderr.write(line + '\n');
-  } else {
-    process.stdout.write(line + '\n');
-  }
+  pinoLog[level]({ module: _module, ...cleanMeta }, rawMessage);
 };
 
 /**
@@ -86,61 +41,64 @@ export function resolveLogLevel(explicit?: LogLevel): LogLevel {
 }
 
 /**
- * Creates a log handler specifically for user applications.
- * Output format: [name]  LEVEL  message (without Nodulus prefix).
+ * Resolves the effective log format.
+ * Priority: explicit logFormat option > NODULUS_LOG_FORMAT > auto (based on NODE_ENV).
  */
-export function createUserLogHandler(name: string): LogHandler {
-  return (level, rawMessage) => {
-    const prefix = pc.gray(`[${name}]`);
-    const paddedLevel = level.padEnd(5);
-    const coloredLabel = LEVEL_STYLE[level](paddedLevel);
+export function resolveLogFormat(explicit?: import('../types/index.js').LogFormat): 'pretty' | 'json' {
+  if (explicit && explicit !== 'auto') return explicit;
 
-    let coloredMessage = rawMessage;
-    switch (level) {
-      case 'debug': coloredMessage = pc.gray(rawMessage); break;
-      case 'info':  coloredMessage = rawMessage; break;
-      case 'warn':  coloredMessage = pc.yellow(rawMessage); break;
-      case 'error': coloredMessage = pc.red(rawMessage); break;
-    }
+  const envFormat = process.env.NODULUS_LOG_FORMAT;
+  if (envFormat === 'pretty' || envFormat === 'json') {
+    return envFormat;
+  }
 
-    const line = `${prefix} ${coloredLabel}  ${coloredMessage}`;
-    
-    if (level === 'warn' || level === 'error') {
-      process.stderr.write(line + '\n');
-    } else {
-      process.stdout.write(line + '\n');
-    }
-  };
+  return process.env.NODE_ENV === 'production' ? 'json' : 'pretty';
 }
+
 
 /**
  * Creates a configured Logger instance for user applications.
  * 
- * @param name - The name of the application or module (used as prefix).
+ * The logger automatically adapts to the environment:
+ * - **Development**: Outputs human-readable, colorized logs via `pino-pretty`, prefixed with `[name]`.
+ * - **Production**: Outputs structured NDJSON logs, injecting `"service": "name"` into each log entry.
+ * 
+ * @example
+ * ```ts
+ * const log = useLogger('my-app');
+ * 
+ * // Development output: [18:45:02.123] INFO  [{service}] [{module}] Connected successfully
+ * // Production output: {"time":"2026-05-07T...","level":"info","service":"my-app","module":"db","msg":"Connected successfully"}
+ * log.info('Connected successfully', { module: 'db' });
+ * ```
+ * 
+ * @param name - The name of the application or service (used as the `service` property).
  */
 export function useLogger(name: string): Logger {
-  const handler = createUserLogHandler(name);
-  const resolvedLevel = resolveLogLevel();
-  return createLogger(handler, resolvedLevel);
+  const child = getPinoInstance().child({ service: name });
+  return buildLoggerFromPino(child);
 }
 
 /**
- * Creates a configured Logger instance for user applications.
+ * Advanced logger factory for deep configuration and custom handlers.
  *
  * **Overload 1 — string shorthand** (public API):
  * ```ts
  * const log = createLogger('my-app');
- * log.info('server ready');
  * ```
- * Uses the user-facing handler (no [Nodulus] prefix) and resolves the log level
- * from the environment (`NODULUS_LOG_LEVEL` / `NODE_DEBUG`).
+ * Alias for `useLogger('my-app')`.
  *
  * **Overload 2 — full control** (internal / advanced):
+ * Allows providing a custom `LogHandler` and filtering by `minLevel`.
+ * 
+ * @example
+ * // Integration with nodulus.config.ts using a custom handler wrapping Pino:
  * ```ts
- * const log = createLogger(handler, 'warn', 'boot');
+ * export default {
+ *   logger: (level, msg, meta) => myCustomLogger[level]({ ...meta }, msg),
+ *   logLevel: 'debug'
+ * };
  * ```
- * Delegates to a custom handler, filters by `minLevel`, and optionally injects
- * `_module` into every log event's meta.
  *
  * @param handlerOrName - A `LogHandler` function OR an application name string.
  * @param minLevel      - Minimum level (only used in the full-control overload).
@@ -155,9 +113,8 @@ export function createLogger(
 ): Logger {
   // ── String overload: user-facing convenience API ──────────────────────────
   if (typeof handlerOrName === 'string') {
-    const handler = createUserLogHandler(handlerOrName);
-    const resolvedLevel = resolveLogLevel();
-    return _buildLogger(handler, resolvedLevel);
+    const child = getPinoInstance().child({ service: handlerOrName });
+    return buildLoggerFromPino(child);
   }
 
   // ── Handler overload: full-control internal API ───────────────────────────
@@ -183,5 +140,17 @@ function _buildLogger(handler: LogHandler, minLevel: LogLevel, module?: string):
     info:  (msg, meta) => emit('info',  msg, meta),
     warn:  (msg, meta) => emit('warn',  msg, meta),
     error: (msg, meta) => emit('error', msg, meta),
+  };
+}
+
+/**
+ * Maps a Pino logger instance to the public Logger interface.
+ */
+function buildLoggerFromPino(child: import('pino').Logger): Logger {
+  return {
+    debug: (msg, meta) => child.debug({ ...meta }, msg),
+    info:  (msg, meta) => child.info({ ...meta }, msg),
+    warn:  (msg, meta) => child.warn({ ...meta }, msg),
+    error: (msg, meta) => child.error({ ...meta }, msg),
   };
 }

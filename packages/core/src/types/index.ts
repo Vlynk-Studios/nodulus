@@ -45,7 +45,11 @@ export interface Logger {
   debug(message: string, meta?: Record<string, unknown>): void;
   info(message:  string, meta?: Record<string, unknown>): void;
   warn(message:  string, meta?: Record<string, unknown>): void;
-  error(message: string, meta?: Record<string, unknown>): void;
+  /**
+   * Logs an error message.
+   * If `meta.err` or `meta.error` is an Error instance, it is automatically serialized with its stack trace in JSON output.
+   */
+  error(message: string, meta?: Record<string, unknown> & { err?: Error, error?: Error }): void;
 }
 
 // ─── Public API types ─────────────────────────────────────────────────────────
@@ -139,6 +143,8 @@ export interface NitsConfig {
   enabled?: boolean;
 }
 
+export type LogFormat = 'pretty' | 'json' | 'auto';
+
 export interface CreateAppOptions {
   /** Glob pointing to module folders. Default: 'src/modules/*'. */
   modules?: string;
@@ -180,6 +186,8 @@ export interface CreateAppOptions {
    * Default: 'info' (debug is off unless explicitly set).
    */
   logLevel?: LogLevel;
+  /** Format of the output logs. Default: 'auto' */
+  logFormat?: LogFormat;
   /** NITS (Nodulus Integrated Tracking System) configuration. */
   nits?: NitsConfig;
   /**
@@ -227,6 +235,7 @@ export interface ResolvedConfig {
   resolveAliases: boolean;
   logger: LogHandler;
   logLevel: LogLevel;
+  logFormat: LogFormat;
   nits: {
     enabled: boolean;
     similarityThreshold?: number;
