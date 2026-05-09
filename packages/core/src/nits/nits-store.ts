@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NITS_REGISTRY_VERSION } from './constants.js';
 import { isValidModuleId } from './nits-id.js';
+import { ensureShadowFile } from './shadow-file.js';
 
 import type { NitsRegistry } from '../types/nits.js';
+import type { ShadowFileRecord } from './shadow-file.types.js';
 
 /**
  * Returns the project name inferred from package.json in the current working directory.
@@ -151,3 +153,31 @@ export async function saveNitsRegistry(registry: NitsRegistry, cwd: string): Pro
   await fs.promises.rename(tempPath, fullPath);
 }
 
+// ─── Shadow File Scanner ───────────────────────────────────────────────────────
+
+/**
+ * Reads (or creates on first run) the `.nodulus` shadow file for every discovered
+ * module directory.
+ *
+ * Called during Step 2.5 of the bootstrap pipeline, immediately before NITS
+ * reconciliation, so that `DiscoveredModule.shadowFile` is populated for every
+ * module that has been onboarded to v1.5.5+.
+ *
+ * @param moduleDirs - Array of absolute paths to module root directories.
+ * @returns          - Map of `dirPath → ShadowFileRecord`.
+ *                    Modules without a valid shadow file are absent from the map.
+ */
+export function scanShadowFiles(
+  moduleDirs: { name: string; dirPath: string }[]
+): Map<string, ShadowFileRecord> {
+  const result = new Map<string, ShadowFileRecord>();
+
+  for (const { name, dirPath } of moduleDirs) {
+    // ensureShadowFile creates the file if absent, returns existing if valid.
+    // It never throws — resilience is guaranteed inside shadow-file.ts.
+    const record = ensureShadowFile(dirPath, name);
+    result.set(dirPath, record);
+  }
+
+  return result;
+}

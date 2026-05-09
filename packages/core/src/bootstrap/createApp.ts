@@ -14,14 +14,13 @@ import { setPinoInstance, createDefaultPinoInstance } from '../core/pino-instanc
 import { performance } from 'node:perf_hooks';
 import pc from 'picocolors';
 import { extractModuleImports } from '../nits/import-scanner.js';
-import { loadNitsRegistry, saveNitsRegistry, initNitsRegistry, inferProjectName } from '../nits/nits-store.js';
+import { loadNitsRegistry, saveNitsRegistry, initNitsRegistry, inferProjectName, scanShadowFiles } from '../nits/nits-store.js';
 import { reconcile, buildUpdatedNitsRegistry, buildNitsIdMap } from '../nits/nits-reconciler.js';
 import { reportReconciliation } from '../nits/nits-reporter.js';
 import { computeModuleHash } from '../nits/nits-hash.js';
 import { normalizePath } from '../core/utils/paths.js';
 import { registerShutdown } from '../core/shutdown.js';
 import type { DiscoveredModule } from '../types/nits.js';
-import { readShadowFile } from '../nits/shadow-file.js';
 
 export async function createApp(
   app: Application,
@@ -156,17 +155,23 @@ export async function createApp(
   // Step 2.5 — NITS Identity Reconciliation (Identity tracking audit layer)
   if (config.nits?.enabled !== false) {
     try {
+      // Step 2.5a — Read/create shadow files for all discovered modules.
+      // scanShadowFiles calls ensureShadowFile per module:
+      //   - First boot: writes a new .nodulus file with a fresh mod_{hex} ID.
+      //   - Subsequent boots: reads the existing file (no-op if already valid).
+      // Errors are swallowed inside shadow-file.ts — bootstrap never fails here.
+      const shadowFileMap = scanShadowFiles(resolvedModules);
+
       const discovered: DiscoveredModule[] = [];
       for (const mod of resolvedModules) {
         const { hash, identifiers } = await computeModuleHash(mod.dirPath);
-        const shadowFile = readShadowFile(mod.dirPath) ?? undefined;
         discovered.push({
           name: mod.name,
           dirPath: mod.dirPath,
           domain: undefined, // Reserved for v2.0 (Domains are not supported in v1.x)
           identifiers,
           hash,
-          shadowFile,
+          shadowFile: shadowFileMap.get(mod.dirPath),
         });
       }
 
