@@ -10,7 +10,7 @@ For full technical details, see the individual package changelogs:
 
 ---
 
-## [1.5.3] — 2026-05-08
+## [1.5.3] — 2026-05-09
 
 ### nodulus-core
 - **Pino Logger Integration**: Internal integration with Pino as the high-performance logging engine.
