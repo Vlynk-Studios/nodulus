@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { syncPreloadCommand } from '../../src/cli/commands/sync-preload.js';
 import { loadConfig } from '../../src/core/config.js';
+import { setPinoInstance, createDefaultPinoInstance } from '../../src/core/pino-instance.js';
 
 vi.mock('../../src/core/config.js', () => ({ loadConfig: vi.fn() }));
 
@@ -15,6 +16,7 @@ const makeBaseConfig = (overrides: Record<string, unknown> = {}) => ({
   resolveAliases: true,
   logger: vi.fn() as any,
   logLevel: 'info' as any,
+  logFormat: 'auto' as any,
   nits: { enabled: false },
   requirePreloader: false,
   ...overrides
@@ -28,17 +30,22 @@ describe('CLI: sync-preload', () => {
     await cmd.parseAsync(['node', 'cli', ...args]);
   };
 
+  let stdoutSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nodulus-sync-preload-'));
     fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'test-app', type: 'module' }));
     fs.writeFileSync(path.join(tmpDir, 'nodulus.config.js'), 'export default {}');
     vi.spyOn(process, 'cwd').mockReturnValue(tmpDir);
     vi.spyOn(console, 'log').mockImplementation(() => {});
+    stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    setPinoInstance(createDefaultPinoInstance('json', 'info'));
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     fs.rmSync(tmpDir, { recursive: true, force: true });
+    setPinoInstance(createDefaultPinoInstance());
   });
 
   it('creates .nodulus/preload.js with correct content from nodulus.config.js project', async () => {
@@ -151,7 +158,7 @@ describe('CLI: sync-preload', () => {
     await runCommand(['--silent']);
 
     // Capture stdout/stderr
-    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    stdoutSpy.mockClear();
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     // Second run: no changes
@@ -159,7 +166,6 @@ describe('CLI: sync-preload', () => {
     expect(stdoutSpy).not.toHaveBeenCalled();
     expect(consoleSpy).not.toHaveBeenCalled();
 
-    stdoutSpy.mockRestore();
     consoleSpy.mockRestore();
   });
 
@@ -170,12 +176,11 @@ describe('CLI: sync-preload', () => {
 
     // Second run with a different alias
     vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@b': './src/b' } }));
-    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    stdoutSpy.mockClear();
     await runCommand(['--silent']);
 
     // It should print exactly one line (the info "updated")
     expect(stdoutSpy).toHaveBeenCalledTimes(1);
-    stdoutSpy.mockRestore();
   });
 
   it('without --silent, shows next steps block when regenerating', async () => {

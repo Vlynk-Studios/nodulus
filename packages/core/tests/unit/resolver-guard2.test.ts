@@ -41,7 +41,7 @@ describe('Resolver Guard 2 (anti-double-registration)', () => {
 
     await activateAliasResolver({ '@modules': '/abs/src/modules' }, {}, dummyLog);
     expect(nodeModule.register).not.toHaveBeenCalled();
-    expect(dummyLog.info).toHaveBeenCalledWith(expect.stringContaining('skipped'), expect.any(Object));
+    expect(dummyLog.debug).toHaveBeenCalledWith(expect.stringContaining('skipped'), expect.any(Object));
   });
 
   it('mergeAliasesIntoPreloadConfig() adds aliases without overwriting existing ones', async () => {

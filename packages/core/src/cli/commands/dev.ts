@@ -63,12 +63,11 @@ export function devCommand(): Command {
                 // Avoid DEP0190 and EINVAL on Windows when shell: true is
                 // required (e.g. tsx). Pass a single command string.
                 const commandStr = `${options.runtime} ${args.map(a => `"${a}"`).join(' ')}`;
-                proc = spawn(commandStr, { stdio: 'inherit', cwd, shell: true });
+                proc = spawn(commandStr, { stdio: ['inherit', 'inherit', 'inherit', 'ipc'], cwd, shell: true });
             } else {
                 // 3.2 — On Windows child.kill() sends SIGKILL by default;
-                // calling without arguments lets Node pick the right signal
-                // per platform. We rely on that here intentionally.
-                proc = spawn(options.runtime, args, { stdio: 'inherit', cwd, shell: false });
+                // We add IPC so we can request a graceful shutdown first.
+                proc = spawn(options.runtime, args, { stdio: ['inherit', 'inherit', 'inherit', 'ipc'], cwd, shell: false });
             }
 
             proc.on('close', (code) => {
@@ -148,11 +147,23 @@ export function devCommand(): Command {
                     logger.info(`Change detected in ${path.basename(changedPath)}. Restarting...`, { _module: 'watcher' });
 
                     restarting = true;
-                    // child.kill() without args: Node sends SIGTERM on Unix,
-                    // TerminateProcess on Windows — correct per 3.2.
-                    child.kill();
-                    // Brief yield so the OS can reclaim the port before re-spawning.
-                    await new Promise<void>(resolve => setTimeout(resolve, 150));
+                    // Gracefully shutdown via IPC
+                    if (child.send) {
+                        child.send('nodulus:shutdown');
+                    } else {
+                        child.kill();
+                    }
+                    // Wait for the child to exit gracefully
+                    await new Promise<void>(resolve => {
+                        const timeout = setTimeout(() => {
+                            child.kill();
+                            resolve();
+                        }, 5000);
+                        child.once('exit', () => {
+                            clearTimeout(timeout);
+                            resolve();
+                        });
+                    });
                     restarting = false;
 
                     child = startProcess();
@@ -168,8 +179,19 @@ export function devCommand(): Command {
             const shutdown = async () => {
                 // 3.3 — watcher.close() returns Promise<void>; must be awaited.
                 await watcher.close();
-                // child.kill() without args (3.2): platform-appropriate signal.
-                child.kill();
+                if (child.send) {
+                    child.send('nodulus:shutdown');
+                } else {
+                    child.kill();
+                }
+                
+                await new Promise<void>(resolve => {
+                    const timeout = setTimeout(() => resolve(), 3000);
+                    child.once('exit', () => {
+                        clearTimeout(timeout);
+                        resolve();
+                    });
+                });
                 process.exit(0);
             };
 
