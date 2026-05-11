@@ -243,7 +243,7 @@ describe('nodulus check', () => {
         
         const logCall = logSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('orders'));
         expect(logCall).toBeDefined();
-        expect(logCall[0]).toMatch(/\[mod_abc\]/);
+        expect(logCall[0]).toMatch(/\[mod_abc via/);
       });
 
       it('shows NITS ID without --verbose when there is an identity conflict', async () => {
@@ -262,7 +262,7 @@ describe('nodulus check', () => {
         
         const logCall = logSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('orders'));
         expect(logCall).toBeDefined();
-        expect(logCall[0]).toMatch(/\[mod_xyz\]/);
+        expect(logCall[0]).toMatch(/\[mod_xyz via/);
       });
     });
 

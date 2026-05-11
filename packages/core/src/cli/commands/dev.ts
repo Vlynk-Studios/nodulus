@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createLogger, defaultLogHandler } from '../../core/logger.js';
+import { readShadowFile } from '../../nits/shadow-file.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -144,7 +145,33 @@ export function devCommand(): Command {
                     // is actively fixing the issue.
                     restartCount = 0;
 
-                    logger.info(`Change detected in ${path.basename(changedPath)}. Restarting...`, { _module: 'watcher' });
+                    // ─── Shadow file awareness ───────────────────────────────────────
+                    // Determine if the changed path is (or is inside) a
+                    // directory that has a .nodulus identity file.
+                    // This lets us log a better hint to the developer:
+                    //   - Has .nodulus → module was moved (identity preserved)
+                    //   - No .nodulus  → new module or untracked file change
+                    // The actual reconciliation always runs in the child process
+                    // on restart — this is informational only.
+                    const changedStat = (() => {
+                        try { return fs.statSync(changedPath); } catch { return null; }
+                    })();
+                    const candidateDir = changedStat?.isDirectory()
+                        ? changedPath
+                        : path.dirname(changedPath);
+                    const shadowFile = readShadowFile(candidateDir);
+
+                    if (shadowFile !== null) {
+                        logger.info(
+                            `Change detected in ${path.basename(changedPath)} — module identity preserved (${shadowFile.id}). Restarting...`,
+                            { _module: 'watcher', moduleId: shadowFile.id, moduleName: shadowFile.name }
+                        );
+                    } else {
+                        logger.info(
+                            `Change detected in ${path.basename(changedPath)}. Restarting...`,
+                            { _module: 'watcher' }
+                        );
+                    }
 
                     restarting = true;
                     // Gracefully shutdown via IPC

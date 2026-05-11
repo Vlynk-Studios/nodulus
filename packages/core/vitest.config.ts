@@ -18,6 +18,10 @@ export default defineConfig({
         branches: 70,
         functions: 90,
         statements: 85,
+        'src/nits/shadow-file.ts': {
+          branches: 90,
+          functions: 100
+        }
       }
     }
   },

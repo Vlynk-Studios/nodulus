@@ -5,12 +5,12 @@ import pc from 'picocolors';
 import { loadConfig } from '../../core/config.js';
 import { buildModuleGraph } from '../lib/graph-builder.js';
 import { detectViolations, ViolationType } from '../lib/violations.js';
-import { loadNitsRegistry, saveNitsRegistry, initNitsRegistry, inferProjectName } from '../../nits/nits-store.js';
+import { loadNitsRegistry, saveNitsRegistry, initNitsRegistry, inferProjectName, scanShadowFiles } from '../../nits/nits-store.js';
 import { createLogger, defaultLogHandler } from '../../core/logger.js';
 import { reconcile, buildUpdatedNitsRegistry, buildNitsIdMap } from '../../nits/nits-reconciler.js';
 import { reportReconciliation } from '../../nits/nits-reporter.js';
 import { computeModuleHash } from '../../nits/nits-hash.js';
-import type { DiscoveredModule } from '../../types/nits.js';
+import type { DiscoveredModule, NitsModuleRecord } from '../../types/nits.js';
 
 function resolveCorePkgVersion(): string | null {
   const depths = [
@@ -74,6 +74,9 @@ export function checkCommand(): Command {
         // NITS Reconciliation (Identity Tracking)
         if (config.nits.enabled) {
           try {
+            // Read-only shadow file scan — same migration-safe approach as createApp.
+            const shadowFileMap = scanShadowFiles(graph.modules.map(n => ({ name: n.name, dirPath: n.dirPath })));
+
             const discovered: DiscoveredModule[] = [];
             for (const node of graph.modules) {
               const { hash, identifiers } = await computeModuleHash(node.dirPath);
@@ -82,7 +85,8 @@ export function checkCommand(): Command {
                 dirPath: node.dirPath,
                 domain: undefined,
                 identifiers,
-                hash
+                hash,
+                shadowFile: shadowFileMap.get(node.dirPath),
               });
             }
 
@@ -97,10 +101,27 @@ export function checkCommand(): Command {
             
             const idMap = buildNitsIdMap(result, cwd);
 
-            // Map IDs back to the graph nodes for reporting
+            // Build a lookup from dirPath -> full reconciliation record
+            // to populate resolvedBy on the graph nodes.
+            const allRecords: NitsModuleRecord[] = [
+              ...result.confirmed,
+              ...result.moved.map(m => m.record),
+              ...result.candidates.map(m => m.record),
+              ...result.newModules,
+            ];
+            const recordByAbsPath = new Map<string, NitsModuleRecord>();
+            for (const rec of allRecords) {
+              const absPath = path.isAbsolute(rec.path)
+                ? rec.path
+                : path.resolve(cwd, rec.path);
+              recordByAbsPath.set(absPath, rec);
+            }
+
+            // Map IDs and resolvedBy back to the graph nodes for reporting
             for (const node of graph.modules) {
               const absPath = path.resolve(node.dirPath);
               node.id = idMap.get(absPath);
+              node.resolvedBy = recordByAbsPath.get(absPath)?.resolvedBy;
             }
 
             const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0;
@@ -149,7 +170,23 @@ export function checkCommand(): Command {
             : false;
             
           const showId = options.verbose || hasIdentityConflict;
-          const idStr = (showId && node.id) ? pc.gray(` [${node.id}]`) : '';
+
+          // ─── Verbose identity string (─────────────────────────────────────────────
+          // Format (verbose / identity-conflict only):
+          //   [mod_105caf03 via shadow-file]
+          //   [mod_3a1f92c1 via path]
+          //   [mod_8b3f2d1a via jaccard (0.87)] — sin archivo .nodulus
+          let idStr = '';
+          if (showId && node.id) {
+            const via = node.resolvedBy ?? 'path';
+            const viaLabel = via === 'shadow-file'
+              ? pc.green('shadow-file')
+              : via === 'jaccard'
+                ? pc.yellow('jaccard')
+                : pc.cyan('path');
+            const noFileHint = via === 'jaccard' ? pc.gray(' — no .nodulus file') : '';
+            idStr = pc.gray(` [${node.id} via `) + viaLabel + pc.gray(']') + noFileHint;
+          }
           
           if (moduleViolations.length === 0) {
             console.log(pc.green(`✔ ${node.name}${idStr} — OK`));

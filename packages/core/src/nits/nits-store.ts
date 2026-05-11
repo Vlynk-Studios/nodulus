@@ -2,8 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NITS_REGISTRY_VERSION } from './constants.js';
 import { isValidModuleId } from './nits-id.js';
+import { readShadowFile, ensureShadowFile } from './shadow-file.js';
 
 import type { NitsRegistry } from '../types/nits.js';
+import type { ShadowFileRecord } from './shadow-file.types.js';
+import type { ReconciliationResult } from '../types/nits.js';
 
 /**
  * Returns the project name inferred from package.json in the current working directory.
@@ -151,3 +154,72 @@ export async function saveNitsRegistry(registry: NitsRegistry, cwd: string): Pro
   await fs.promises.rename(tempPath, fullPath);
 }
 
+// ─── Shadow File Scanner ───────────────────────────────────────────────────────
+
+/**
+ * READ-ONLY scanner — reads existing `.nodulus` shadow files without creating new ones.
+ *
+ * Called during Step 2.5 of the bootstrap pipeline, BEFORE NITS reconciliation.
+ * Only modules that already have a valid shadow file (v1.5.5+) get their
+ * `DiscoveredModule.shadowFile` populated. Legacy modules arrive with `undefined`
+ * and fall through to the path/Jaccard steps — preserving their history.
+ *
+ * Shadow files for newly-resolved modules are written AFTER reconcile() via
+ * `postReconcileEnsureShadowFiles()` so identity is established before the
+ * next boot cycle.
+ *
+ * @param moduleDirs - Array of {name, dirPath} for each discovered module.
+ * @returns Map of `dirPath → ShadowFileRecord` for modules that have a valid file.
+ */
+export function scanShadowFiles(
+  moduleDirs: { name: string; dirPath: string }[]
+): Map<string, ShadowFileRecord> {
+  const result = new Map<string, ShadowFileRecord>();
+
+  for (const { dirPath } of moduleDirs) {
+    // READ ONLY — never creates. Legacy modules return null and are excluded.
+    const record = readShadowFile(dirPath);
+    if (record !== null) {
+      result.set(dirPath, record);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * POST-RECONCILE shadow file writer.
+ *
+ * Called AFTER reconcile() completes. Creates `.nodulus` shadow files for
+ * modules that were resolved via path or Jaccard (Steps 1–3) and do not yet
+ * have a shadow file. This ensures they carry a stable ID on every subsequent
+ * boot without disrupting the migration path for existing projects.
+ *
+ * @param result       - The reconciliation result from this boot cycle.
+ * @param resolvedDirs - Map of `dirPath → moduleName` for all discovered modules.
+ */
+export function postReconcileEnsureShadowFiles(
+  result: ReconciliationResult,
+  resolvedDirs: Map<string, string>
+): void {
+  // Only act on modules resolved by path or Jaccard — shadow-file resolved
+  // modules already have their file; new modules will get one on the next step.
+  const needsShadowFile = [
+    ...result.confirmed.filter(r => r.resolvedBy !== 'shadow-file'),
+    ...result.moved.map(m => m.record).filter(r => r.resolvedBy !== 'shadow-file'),
+    ...result.candidates.map(m => m.record).filter(r => r.resolvedBy !== 'shadow-file'),
+    ...result.newModules.filter(r => r.resolvedBy !== 'shadow-file'),
+  ];
+
+  for (const record of needsShadowFile) {
+    // Locate the absolute dirPath for this record (stored as relative in registry)
+    for (const [dirPath, name] of resolvedDirs) {
+      const relPath = path.relative(process.cwd(), dirPath).replace(/\\/g, '/');
+      if (relPath === record.path || dirPath === record.path) {
+        // ensureShadowFile is idempotent: skips if file already valid.
+        ensureShadowFile(dirPath, name, record.id);
+        break;
+      }
+    }
+  }
+}
