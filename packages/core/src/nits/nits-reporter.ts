@@ -7,7 +7,8 @@ export function reportReconciliation(result: ReconciliationResult, log: Logger):
   const hasAlerts = 
     result.moved.length > 0 || 
     result.candidates.length > 0 || 
-    result.stale.length > 0;
+    result.stale.length > 0 ||
+    result.deleted.length > 0;
 
   if (!hasAlerts) {
     log.debug('no changes detected', { _module: 'nits' });
@@ -39,12 +40,22 @@ export function reportReconciliation(result: ReconciliationResult, log: Logger):
 
   if (result.stale.length > 0) {
     for (const m of result.stale) {
-      let msg = `Module '${pc.bold(m.name)}' not found on disk (marked as stale)\n`;
+      let msg = `Module '${pc.bold(m.name)}' not found on disk — marked stale.\n`;
       msg += `           ${pc.gray('Last location:')} ${pc.gray(m.path)}\n`;
-      msg += `           If it was intentionally deleted, you can ignore this.\n`;
-      msg += `           If it was moved, make sure the new directory has Module().`;
+      msg += `           Will be removed from registry if absent next cycle.\n`;
+      msg += `           If it was moved, ensure the new directory has Module().`;
       
       log.warn(msg, { _module: 'nits' });
+    }
+  }
+
+  if (result.deleted.length > 0) {
+    for (const m of result.deleted) {
+      let msg = `Module '${pc.bold(m.name)}' (${pc.gray(m.id)}) confirmed deleted — purged from registry.\n`;
+      msg += `           ${pc.gray('Last location:')} ${pc.gray(m.path)}`;
+      
+      // info, not warn — a confirmed delete is a normal lifecycle event.
+      log.info(msg, { _module: 'nits' });
     }
   }
 
@@ -80,6 +91,10 @@ export function reportReconciliation(result: ReconciliationResult, log: Logger):
   
   if (result.stale.length > 0) {
     log.debug(`${pc.gray('✖')} Stale (disk):  ${pc.bold(result.stale.length)}`, { _module: 'nits' });
+  }
+
+  if (result.deleted.length > 0) {
+    log.debug(`${pc.red('✗')} Deleted:        ${pc.bold(result.deleted.length)}`, { _module: 'nits' });
   }
   
   log.debug(pc.gray('----------------------------------------\n'), { _module: 'nits' });

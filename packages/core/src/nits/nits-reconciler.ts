@@ -367,6 +367,16 @@ export function buildUpdatedNitsRegistry(
 ): NitsRegistry {
   const modules: Record<string, NitsModuleRecord> = {};
 
+  // Log each confirmed delete before excluding it from the persisted registry.
+  // Note: `reconcile()` already emits a detection-level log when modules enter
+  // the `deleted` bucket. This log marks the registry-write action — the two
+  // events are distinct and both useful for tracing across the pipeline.
+  for (const deleted of result.deleted) {
+    console.info(
+      `[NITS] Purging "${deleted.name}" (${deleted.id}) from registry — confirmed delete.`
+    );
+  }
+
   const allActive = [
     ...result.confirmed,
     ...result.moved.map(m => m.record),
@@ -382,9 +392,8 @@ export function buildUpdatedNitsRegistry(
     ...result.candidates.map(m => m.record),  // already has status: 'candidate'
     ...result.newModules,
     ...result.stale,
-    // NOTE: result.deleted is intentionally excluded here.
-    // Confirmed deletes are PURGED from the registry — that is the entire
-    // purpose of the delete-detection feature. Do not add them back.
+    // result.deleted is intentionally excluded — atomic purge.
+    // Confirmed deletes must NOT be written back to the registry.
   ];
 
   for (const record of allActive) {
