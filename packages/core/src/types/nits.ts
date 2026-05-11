@@ -1,4 +1,4 @@
-export type NitsStatus = 'active' | 'stale' | 'moved' | 'candidate';
+export type NitsStatus = 'active' | 'stale' | 'moved' | 'candidate' | 'deleted';
 
 export interface DiscoveredModule {
   name: string;

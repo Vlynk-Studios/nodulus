@@ -336,7 +336,23 @@ export async function reconcile(
   }
 
   for (const prev of unmatchedPrev) {
-    result.stale.push({ ...prev, status: 'stale' });
+    if (prev.shadowFileId) {
+      // This module had a tracked shadow identity in the previous registry.
+      // Step 0 would have matched it if its .nodulus file were still on disk
+      // anywhere this cycle (even at a different path — that's a move).
+      // Its absence here means the directory — and its .nodulus file — are
+      // genuinely gone. This is a confirmed delete: purge from registry.
+      console.info(
+        `[NITS] Delete confirmed: "${prev.name}" (${prev.id}) — shadow ID "${prev.shadowFileId}" not found on disk this cycle. Removing from registry.`
+      );
+      result.deleted.push({ ...prev, status: 'deleted' });
+    } else {
+      // Legacy module (pre-v1.5.5) or module whose shadow file write failed
+      // last cycle. Without a shadow ID we cannot distinguish delete from a
+      // missed move. Fall back to the classic stale path: one-cycle grace
+      // period, then Step 3 (name-based candidate) can rescue it next boot.
+      result.stale.push({ ...prev, status: 'stale' });
+    }
   }
 
   return result;
@@ -372,7 +388,11 @@ export function buildUpdatedNitsRegistry(
   ];
 
   for (const record of allActive) {
-    modules[record.id] = record;
+    // Strip `resolvedBy` before persistence — it is a per-cycle diagnostic
+    // field consumed only by `check --verbose`. It must never leak into
+    // registry.json (it would grow stale immediately and mislead future reads).
+    const { resolvedBy: _drop, ...persistedRecord } = record;
+    modules[record.id] = persistedRecord as NitsModuleRecord;
   }
 
   return {

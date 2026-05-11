@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NITS_REGISTRY_VERSION } from './constants.js';
 import { isValidModuleId } from './nits-id.js';
-import { readShadowFile, ensureShadowFile } from './shadow-file.js';
+import { ensureShadowFile } from './shadow-file.js';
 
 import type { NitsRegistry } from '../types/nits.js';
 import type { ShadowFileRecord } from './shadow-file.types.js';
