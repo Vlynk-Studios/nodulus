@@ -154,33 +154,52 @@ export async function saveNitsRegistry(registry: NitsRegistry, cwd: string): Pro
   await fs.promises.rename(tempPath, fullPath);
 }
 
-// ─── Shadow File Scanner ───────────────────────────────────────────────────────
-
 /**
- * READ-ONLY scanner — reads existing `.nodulus` shadow files without creating new ones.
+ * Shadow file scanner — idempotent, never throws.
  *
- * Called during Step 2.5 of the bootstrap pipeline, BEFORE NITS reconciliation.
- * Only modules that already have a valid shadow file (v1.5.5+) get their
- * `DiscoveredModule.shadowFile` populated. Legacy modules arrive with `undefined`
- * and fall through to the path/Jaccard steps — preserving their history.
+ * For each discovered module directory:
+ *  - If a valid `.nodulus` file already exists → reads and returns it (no-op).
+ *  - If missing or corrupted → creates a new one with a fresh `mod_{hex}` ID.
  *
- * Shadow files for newly-resolved modules are written AFTER reconcile() via
- * `postReconcileEnsureShadowFiles()` so identity is established before the
- * next boot cycle.
+ * Called during Step 2.5 of the bootstrap pipeline, BEFORE NITS reconciliation,
+ * so every module enters the reconciler with a stable shadow identity.
+ *
+ * **Edge case — write permission denied:** `ensureShadowFile` swallows the error
+ * and returns the in-memory record regardless. The scanner stores `undefined` for
+ * that module so the reconciler falls through to Jaccard. Bootstrap continues.
+ *
+ * **Edge case — FS race condition (Chokidar `unlinkDir` during scan):** If the
+ * directory disappears between discovery and this call (e.g. the user deletes it
+ * while the scanner runs), `ensureShadowFile` can throw an `ENOENT`. The
+ * try/catch below catches it and excludes the module, treating it as if
+ * `shadowFile` were `undefined`. The reconciler will route it to `stale`.
  *
  * @param moduleDirs - Array of {name, dirPath} for each discovered module.
- * @returns Map of `dirPath → ShadowFileRecord` for modules that have a valid file.
+ * @returns Map of `dirPath → ShadowFileRecord` for modules with a valid identity.
  */
 export function scanShadowFiles(
   moduleDirs: { name: string; dirPath: string }[]
 ): Map<string, ShadowFileRecord> {
   const result = new Map<string, ShadowFileRecord>();
 
-  for (const { dirPath } of moduleDirs) {
-    // READ ONLY — never creates. Legacy modules return null and are excluded.
-    const record = readShadowFile(dirPath);
-    if (record !== null) {
+  for (const { name, dirPath } of moduleDirs) {
+    try {
+      // ensureShadowFile is idempotent:
+      //  - Existing valid file → returned unchanged (fast path, no write).
+      //  - Missing/corrupted  → generates a new ID, writes the file, returns it.
+      // writeShadowFile() inside ensureShadowFile never throws — it swallows
+      // permission errors and warns via console. The returned record is always
+      // valid (in-memory ID), even if the write failed.
+      const record = ensureShadowFile(dirPath, name);
       result.set(dirPath, record);
+    } catch (err: unknown) {
+      // ENOENT or any unexpected error: directory vanished during scan
+      // (FS race condition). Exclude this module — it will surface as `stale`
+      // in the reconciler and eventually as `deleted` if its shadow ID is gone.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[NITS] Shadow file scan skipped for "${dirPath}": ${msg}. Module will be treated as legacy this cycle.`
+      );
     }
   }
 

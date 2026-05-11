@@ -99,6 +99,10 @@ export async function reconcile(
     lastSeen: timestamp,
     identifiers: disc.identifiers,
     resolvedBy,
+    // Persist the shadow file ID so delete-detection can verify whether this
+    // module's identity appears on disk in subsequent reconciliation cycles.
+    // Absent for legacy modules (no .nodulus file) — Jaccard is used as fallback.
+    shadowFileId: disc.shadowFile?.id,
   });
 
   // ── STEP 0 (NEW): Match by Shadow File ID ──────────────────────────────────
