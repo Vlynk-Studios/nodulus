@@ -27,10 +27,20 @@ export interface NitsModuleRecord {
   lastSeen: string;    // ISO 8601 timestamp
   identifiers: string[];
   /**
+   * Stable ID from the `.nodulus` shadow file captured at the last reconciliation.
+   * Used as primary identity key for Move vs Delete detection.
+   * - Present  → shadow-file path is taken; Jaccard is skipped for this record.
+   * - Absent   → legacy module (pre-v1.5.5); Jaccard is used as fallback.
+   * Optional for full backwards-compatibility with existing `registry.json` files.
+   * @since v1.5.5
+   */
+  shadowFileId?: string;
+  /**
    * How identity was resolved for this record in the last reconciliation cycle.
    * - `'shadow-file'` — matched via `.nodulus` ID (highest confidence).
    * - `'path'`        — matched via exact directory path (Step 1 / Jaccard fallback).
    * - `'jaccard'`     — matched via AST hash similarity (Step 2 / Step 3).
+   * Only present in the in-memory result; NOT serialised to `registry.json`.
    * Optional so existing registry records without this field remain valid.
    * @since v1.5.5
    */
@@ -68,6 +78,7 @@ export interface ReconciliationResult {
   confirmed: NitsModuleRecord[];   // path + hash match
   moved: MovedModule[];            // high confidence move (hash match)
   candidates: MovedModule[];       // medium confidence move (name match)
-  stale: NitsModuleRecord[];       // disappeared from disk
+  stale: NitsModuleRecord[];       // disappeared from disk — unresolved (no shadow ID or shadow ID not seen in this cycle yet)
+  deleted: NitsModuleRecord[];     // confirmed delete — shadow ID absent from all discovered modules in this cycle
   newModules: NitsModuleRecord[];  // no match in previous registry
 }

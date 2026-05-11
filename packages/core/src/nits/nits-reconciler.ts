@@ -58,6 +58,7 @@ export async function reconcile(
     moved: [],
     candidates: [],
     stale: [],
+    deleted: [],     // confirmed deletes — shadow ID absent from all discovered modules in this cycle
     newModules: []
   };
 
@@ -360,7 +361,10 @@ export function buildUpdatedNitsRegistry(
     //   Cycle N+1 → Step 1 matches by new-path → confirmed as 'active'
     ...result.candidates.map(m => m.record),  // already has status: 'candidate'
     ...result.newModules,
-    ...result.stale
+    ...result.stale,
+    // NOTE: result.deleted is intentionally excluded here.
+    // Confirmed deletes are PURGED from the registry — that is the entire
+    // purpose of the delete-detection feature. Do not add them back.
   ];
 
   for (const record of allActive) {
