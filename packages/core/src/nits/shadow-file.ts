@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import {
   SHADOW_FILE_NAME,
+  SHADOW_FILE_VERSION,
   isShadowFileRecord,
   type ShadowFileRecord,
 } from './shadow-file.types.js';
@@ -102,6 +103,7 @@ export function writeShadowFile(moduleDirPath: string, record: ShadowFileRecord)
   // Schema v1 — only persist the three canonical fields.
   // Future fields (domain, history, checksum) must NEVER bleed in here.
   const payload: ShadowFileRecord = {
+    version:   record.version || SHADOW_FILE_VERSION,
     id:        record.id,
     name:      record.name,
     createdAt: record.createdAt,
@@ -142,6 +144,7 @@ export function ensureShadowFile(
   }
 
   const record: ShadowFileRecord = {
+    version:   SHADOW_FILE_VERSION,
     id:        existingId || generateModuleId(),
     name:      moduleName,
     createdAt: new Date().toISOString(),

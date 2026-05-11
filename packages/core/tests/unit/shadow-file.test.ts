@@ -24,6 +24,7 @@ describe("Shadow File Identity System", () => {
   describe("Types & Validation", () => {
     it("isShadowFileRecord returns true for valid v1 schema", () => {
       const valid: ShadowFileRecord = {
+        version: 1,
         id: "mod_a1b2c3d4",
         name: "users",
         createdAt: "2024-01-01T12:00:00Z",
@@ -49,6 +50,7 @@ describe("Shadow File Identity System", () => {
       // Invalid ID
       expect(
         isShadowFileRecord({
+          version: 1,
           id: "invalid_format", // not 8 hex chars
           name: "users",
           createdAt: "2024-01-01T12:00:00Z",
@@ -58,6 +60,7 @@ describe("Shadow File Identity System", () => {
       // Missing name
       expect(
         isShadowFileRecord({
+          version: 1,
           id: "mod_a1b2c3d4",
           createdAt: "2024-01-01T12:00:00Z",
         }),
@@ -66,6 +69,7 @@ describe("Shadow File Identity System", () => {
       // Empty name
       expect(
         isShadowFileRecord({
+          version: 1,
           id: "mod_a1b2c3d4",
           name: "",
           createdAt: "2024-01-01T12:00:00Z",
@@ -75,9 +79,29 @@ describe("Shadow File Identity System", () => {
       // Invalid date
       expect(
         isShadowFileRecord({
+          version: 1,
           id: "mod_a1b2c3d4",
           name: "users",
           createdAt: "not-a-date",
+        }),
+      ).toBe(false);
+
+      // Missing version
+      expect(
+        isShadowFileRecord({
+          id: "mod_a1b2c3d4",
+          name: "users",
+          createdAt: "2024-01-01T12:00:00Z",
+        }),
+      ).toBe(false);
+
+      // Invalid version type
+      expect(
+        isShadowFileRecord({
+          version: "1",
+          id: "mod_a1b2c3d4",
+          name: "users",
+          createdAt: "2024-01-01T12:00:00Z",
         }),
       ).toBe(false);
     });
@@ -107,6 +131,7 @@ describe("Shadow File Identity System", () => {
     describe("readShadowFile", () => {
       it("returns valid record if file exists and is valid", () => {
         const validRecord: ShadowFileRecord = {
+          version: 1,
           id: "mod_11223344",
           name: "test",
           createdAt: "2024-01-01T00:00:00.000Z",
@@ -210,6 +235,7 @@ describe("Shadow File Identity System", () => {
 
       it("does not mutate the object between successive calls to the same file", () => {
         const validRecord: ShadowFileRecord = {
+          version: 1,
           id: "mod_11223344",
           name: "test",
           createdAt: "2024-01-01T00:00:00Z",
@@ -231,6 +257,7 @@ describe("Shadow File Identity System", () => {
         vi.mocked(fs.existsSync).mockReturnValue(false);
 
         const record: ShadowFileRecord = {
+          version: 1,
           id: "mod_11223344",
           name: "test",
           createdAt: "2024-01-01T00:00:00.000Z",
@@ -242,12 +269,13 @@ describe("Shadow File Identity System", () => {
         const writtenContent = writeCall[1] as string;
         
         // Assert indenting
-        expect(writtenContent).toContain('{\n  "id": "mod_11223344",\n  "name": "test",\n');
+        expect(writtenContent).toContain('{\n  "version": 1,\n  "id": "mod_11223344",\n  "name": "test",\n');
       });
 
       it("creates a file that is valid for readShadowFile", () => {
         vi.mocked(fs.existsSync).mockReturnValue(false);
         const record: ShadowFileRecord = {
+          version: 1,
           id: "mod_11223344",
           name: "test",
           createdAt: "2024-01-01T00:00:00.000Z",
@@ -266,6 +294,7 @@ describe("Shadow File Identity System", () => {
 
       it("does not overwrite an existing valid file", () => {
         const existingRecord: ShadowFileRecord = {
+          version: 1,
           id: "mod_00001234",
           name: "test",
           createdAt: "2023-01-01T00:00:00.000Z",
@@ -274,6 +303,7 @@ describe("Shadow File Identity System", () => {
         vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(existingRecord));
 
         const newRecord: ShadowFileRecord = {
+          version: 1,
           id: "mod_new54321",
           name: "test",
           createdAt: "2024-01-01T00:00:00.000Z",
@@ -292,6 +322,7 @@ describe("Shadow File Identity System", () => {
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
         const record: ShadowFileRecord = {
+          version: 1,
           id: "mod_11223344",
           name: "test",
           createdAt: "2024-01-01T00:00:00.000Z",
@@ -312,6 +343,7 @@ describe("Shadow File Identity System", () => {
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
         const record: ShadowFileRecord = {
+          version: 1,
           id: "mod_11223344",
           name: "test",
           createdAt: "2024-01-01T00:00:00.000Z",
@@ -327,6 +359,7 @@ describe("Shadow File Identity System", () => {
       it("writes only the v1 schema fields (strips extra fields)", () => {
         vi.mocked(fs.existsSync).mockReturnValue(false);
         const record = {
+          version: 1,
           id: "mod_11223344",
           name: "test",
           createdAt: "2024-01-01T00:00:00.000Z",
@@ -340,6 +373,7 @@ describe("Shadow File Identity System", () => {
         expect(writeCall[0]).toBe(shadowFilePath);
         const writtenObj = JSON.parse(writeCall[1] as string);
 
+        expect(writtenObj).toHaveProperty("version", 1);
         expect(writtenObj).toHaveProperty("id", "mod_11223344");
         expect(writtenObj).toHaveProperty("name", "test");
         expect(writtenObj).toHaveProperty("createdAt");
@@ -351,6 +385,7 @@ describe("Shadow File Identity System", () => {
     describe("ensureShadowFile", () => {
       it("returns existing record if valid file is present", () => {
         const validRecord: ShadowFileRecord = {
+          version: 1,
           id: "mod_11223344",
           name: "test",
           createdAt: "2024-01-01T00:00:00.000Z",

@@ -20,6 +20,8 @@ export const SHADOW_FILE_VERSION = 1;
  * @since v1.5.5
  */
 export interface ShadowFileRecord {
+  /** Schema version. Helps with future migrations. */
+  version: number;
   /** Stable NITS module ID. Format: `mod_[0-9a-f]{8}`. Source of truth for identity. */
   id: string;
   /** Module name at the time the file was created. May drift if the user renames the folder. */
@@ -38,6 +40,7 @@ const ISO_8601_RE =
  * Type guard — returns `true` if `value` is a well-formed `ShadowFileRecord`.
  *
  * Validates:
+ * - `version` is a number
  * - `id` matches `/^mod_[0-9a-f]{8}$/`
  * - `name` is a non-empty string
  * - `createdAt` is a valid ISO 8601 datetime string
@@ -47,6 +50,7 @@ export function isShadowFileRecord(value: unknown): value is ShadowFileRecord {
 
   const v = value as Record<string, unknown>;
 
+  if (typeof v.version !== 'number')                                 return false;
   if (typeof v.id !== 'string' || !/^mod_[0-9a-f]{8}$/.test(v.id))  return false;
   if (typeof v.name !== 'string' || v.name.trim() === '')             return false;
   if (typeof v.createdAt !== 'string' || !ISO_8601_RE.test(v.createdAt)) return false;
