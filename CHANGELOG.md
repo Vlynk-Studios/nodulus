@@ -10,6 +10,18 @@ For full technical details, see the individual package changelogs:
 
 ---
 
+## [1.5.5] — 2026-05-11
+
+### nodulus-core
+- **Shadow File (`.nodulus`)**: Introduced persistent module identity via a local `.nodulus` file in each module directory, ensuring stability across renames and moves.
+- **NITS Resolution Overhaul**: Identity resolution now prioritizes the Shadow File ID, followed by path matching, and finally Jaccard similarity as a fallback.
+- **CLI Improvements**: `create-module` now automatically generates the `.nodulus` shadow file. `nodulus check --verbose` shows the exact identity resolution method used for each module.
+
+### eslint-plugin-nodulus
+- Version synchronized with `nodulus-core@1.5.5`. No new rules or behavioral changes.
+
+---
+
 ## [1.5.3] — 2026-05-09
 
 ### nodulus-core

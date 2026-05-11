@@ -160,6 +160,17 @@ src/
 └── app.ts
 ```
 
+## Module Identity
+
+Each module in Nodulus has a persistent identity stored in a `.nodulus` file
+at its root. This file is created automatically on first bootstrap and should
+be committed to Git.
+
+The identity file enables Nodulus to track modules across renames and moves,
+even when the module's internal code changes significantly.
+
+**You don't need to manage this file manually.**
+
 ---
 
 ## API

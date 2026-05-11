@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pc from 'picocolors';
 import { NodulusError } from '../../core/errors.js';
+import { generateModuleId, writeShadowFile } from '../../nits/shadow-file.js';
+import { SHADOW_FILE_VERSION } from '../../nits/shadow-file.types.js';
 
 export function createModuleCommand() {
   return new Command('create-module')
@@ -64,7 +66,19 @@ export function createModuleCommand() {
         fs.writeFileSync(path.join(modulePath, filename), content.trim() + '\n', 'utf-8');
       }
 
+      // Write the .nodulus shadow file — establishes stable identity from day one.
+      // The ID is never shown to the user; it is a Nodulus internal detail.
+      const shadowRecord = {
+        version: SHADOW_FILE_VERSION,
+        id: generateModuleId(),
+        name,
+        createdAt: new Date().toISOString(),
+      };
+      writeShadowFile(modulePath, shadowRecord);
+
       console.log(pc.green(`\n✔ Module '${name}' created successfully at ${path.relative(process.cwd(), modulePath)}/`));
+      // .nodulus is always listed first — it is the identity anchor of the module.
+      console.log(`  ${pc.gray('.nodulus')}`);
       for (const filename of Object.keys(files)) {
         console.log(`  ${pc.cyan(filename)}`);
       }
