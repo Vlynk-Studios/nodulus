@@ -1,18 +1,18 @@
 {
   "project": "basic-app-fixture",
   "version": "1.0.0",
-  "lastCheck": "2026-05-09T19:35:09.488Z",
+  "lastCheck": "2026-05-11T18:23:11.536Z",
   "modules": {
-    "mod_e7e07ad4": {
-      "id": "mod_e7e07ad4",
-      "name": "users",
-      "path": "src/modules/users",
-      "hash": "a4b16a7ff2",
+    "mod_b578ddb5": {
+      "id": "mod_b578ddb5",
+      "name": "auth",
+      "path": "src/modules/auth",
+      "hash": "3b2ada168f",
       "status": "active",
       "createdAt": "2026-05-09T17:41:10.177Z",
-      "lastSeen": "2026-05-09T19:35:09.478Z",
+      "lastSeen": "2026-05-11T18:23:11.531Z",
       "identifiers": [],
-      "resolvedBy": "path"
+      "resolvedBy": "shadow-file"
     },
     "mod_20d8651a": {
       "id": "mod_20d8651a",
@@ -21,20 +21,20 @@
       "hash": "f39adf68e3",
       "status": "active",
       "createdAt": "2026-05-09T17:41:10.177Z",
-      "lastSeen": "2026-05-09T19:35:09.478Z",
+      "lastSeen": "2026-05-11T18:23:11.531Z",
       "identifiers": [],
-      "resolvedBy": "path"
+      "resolvedBy": "shadow-file"
     },
-    "mod_b578ddb5": {
-      "id": "mod_b578ddb5",
-      "name": "auth",
-      "path": "src/modules/auth",
-      "hash": "3b2ada168f",
+    "mod_e7e07ad4": {
+      "id": "mod_e7e07ad4",
+      "name": "users",
+      "path": "src/modules/users",
+      "hash": "a4b16a7ff2",
       "status": "active",
       "createdAt": "2026-05-09T17:41:10.177Z",
-      "lastSeen": "2026-05-09T19:35:09.478Z",
+      "lastSeen": "2026-05-11T18:23:11.531Z",
       "identifiers": [],
-      "resolvedBy": "path"
+      "resolvedBy": "shadow-file"
     },
     "mod_7ffb309c": {
       "id": "mod_7ffb309c",

@@ -1,6 +1,6 @@
 {
   "name": "@vlynk-studios/eslint-plugin-nodulus",
-  "version": "1.5.3",
+  "version": "1.5.5",
   "description": "ESLint plugin for Nodulus architecture validation.",
   "type": "module",
   "main": "./dist/index.js",
