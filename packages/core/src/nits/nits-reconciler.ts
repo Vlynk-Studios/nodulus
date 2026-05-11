@@ -3,6 +3,7 @@ import { NITS_REGISTRY_VERSION } from './constants.js';
 import { hashSimilarity } from './nits-hash.js';
 import { generateModuleId } from './nits-id.js';
 import { generateModuleId as generateShadowId, deleteShadowFile, writeShadowFile } from './shadow-file.js';
+import { SHADOW_FILE_VERSION } from './shadow-file.types.js';
 import { NodulusError } from '../core/errors.js';
 import { normalizePath } from '../core/utils/paths.js';
 import type {
@@ -146,6 +147,7 @@ export async function reconcile(
           );
           deleteShadowFile(disc.dirPath);  // remove the cloned ID
           writeShadowFile(disc.dirPath, {  // write the corrected ID
+            version: SHADOW_FILE_VERSION,
             id: newId,
             name: disc.name,
             createdAt: new Date().toISOString(),

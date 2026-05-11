@@ -4,6 +4,7 @@ import path from 'node:path';
 import pc from 'picocolors';
 import { NodulusError } from '../../core/errors.js';
 import { generateModuleId, writeShadowFile } from '../../nits/shadow-file.js';
+import { SHADOW_FILE_VERSION } from '../../nits/shadow-file.types.js';
 
 export function createModuleCommand() {
   return new Command('create-module')
@@ -68,6 +69,7 @@ export function createModuleCommand() {
       // Write the .nodulus shadow file — establishes stable identity from day one.
       // The ID is never shown to the user; it is a Nodulus internal detail.
       const shadowRecord = {
+        version: SHADOW_FILE_VERSION,
         id: generateModuleId(),
         name,
         createdAt: new Date().toISOString(),
