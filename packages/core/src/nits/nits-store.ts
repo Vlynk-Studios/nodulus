@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NITS_REGISTRY_VERSION } from './constants.js';
 import { isValidModuleId } from './nits-id.js';
-import { ensureShadowFile } from './shadow-file.js';
+import { ensureShadowFile, readShadowFile } from './shadow-file.js';
 
 import type { NitsRegistry } from '../types/nits.js';
 import type { ShadowFileRecord } from './shadow-file.types.js';
@@ -184,14 +184,10 @@ export function scanShadowFiles(
 
   for (const { name, dirPath } of moduleDirs) {
     try {
-      // ensureShadowFile is idempotent:
-      //  - Existing valid file → returned unchanged (fast path, no write).
-      //  - Missing/corrupted  → generates a new ID, writes the file, returns it.
-      // writeShadowFile() inside ensureShadowFile never throws — it swallows
-      // permission errors and warns via console. The returned record is always
-      // valid (in-memory ID), even if the write failed.
-      const record = ensureShadowFile(dirPath, name);
-      result.set(dirPath, record);
+      const record = readShadowFile(dirPath);
+      if (record) {
+        result.set(dirPath, record);
+      }
     } catch (err: unknown) {
       // ENOENT or any unexpected error: directory vanished during scan
       // (FS race condition). Exclude this module — it will surface as `stale`

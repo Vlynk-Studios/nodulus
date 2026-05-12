@@ -114,7 +114,7 @@ export async function reconcile(
   // fresh ID and a warning.
   const shadowIdToDiscovered = new Map<string, DiscoveredModule[]>();
   for (const disc of unmatchedDiscovered) {
-    if (disc.shadowFile) {
+    if (disc.shadowFile?.id) {
       const arr = shadowIdToDiscovered.get(disc.shadowFile.id) ?? [];
       arr.push(disc);
       shadowIdToDiscovered.set(disc.shadowFile.id, arr);
