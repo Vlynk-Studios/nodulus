@@ -12,6 +12,7 @@ const defaultIgnored = [
   "**/dist/**",
   "**/*.d.ts",
   "**/*.map",
+  "**/.nodulus",
   "**/.nodulus/**",
   "**/coverage/**",
 ];

@@ -195,11 +195,11 @@ describe('createWatcher', () => {
   //
   // The ignored list is passed to chokidar as a configuration option.
   // Since chokidar is mocked, the actual glob filtering does not run.
-  // We verify that createWatcher passes '**/.nodulus/**' in the `ignored`
+  // We verify that createWatcher passes '**/.nodulus' and '**/.nodulus/**' in the `ignored`
   // option — this is the regression-safe contract that prevents the loop:
   //   createApp() updates NITS registry → watcher fires → restart → loop.
 
-  it('passes **/.nodulus/** in the ignored list to prevent NITS registry loops', () => {
+  it('passes **/.nodulus and **/.nodulus/** in the ignored list to prevent NITS registry loops', () => {
     createWatcher({ paths: '/src', logger, onRestart: vi.fn() });
 
     expect(chokidarMock.watch).toHaveBeenCalled();
@@ -209,6 +209,7 @@ describe('createWatcher', () => {
       ? watchOptions.ignored
       : [watchOptions.ignored];
 
+    expect(ignoredPatterns).toContain('**/.nodulus');
     expect(ignoredPatterns).toContain('**/.nodulus/**');
   });
 
