@@ -47,7 +47,7 @@ function formatTime(epoch: number): string {
 }
 
 // ── Line formatter ────────────────────────────────────────────────────────────
-// [nodulus]  → fg bold     — identity, no color (Ayu common foreground)
+// [system]  → fg bold     — identity, no color (Ayu common foreground)
 // [app]      → muted       — user, subordinate (Ayu comment)
 // [context]  → muted dim   — disappears
 // message    → fg          — the protagonist
@@ -66,9 +66,9 @@ function formatPrettyLine(obj: Record<string, unknown>): string {
   // level: styled per Ayu color table
   const lvStr = `${fmt.prefix}${fmt.label}${R}`;
 
-  // [nodulus] = bold fg, user services = muted
-  const svcStr = service === 'nodulus'
-    ? ` ${BOLD}${AYU.fg}[nodulus]${R}`
+  // [system] = bold fg, user services = muted
+  const svcStr = service === 'system'
+    ? ` ${BOLD}${AYU.fg}[system]${R}`
     : service
       ? ` ${AYU.muted}[${service}]${R}`
       : '';
@@ -120,7 +120,7 @@ export function createDefaultPinoInstance(
 
   const baseOpts = {
     level: resolvedLevel,
-    base: { service: 'nodulus' },
+    base: { service: 'system' },
     serializers: {
       err:   stdSerializers.err,
       error: stdSerializers.err,

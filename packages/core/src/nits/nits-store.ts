@@ -54,25 +54,25 @@ export async function loadNitsRegistry(cwd: string): Promise<NitsRegistry | null
     
     // Schema Validation
     if (!isValidRegistry(data)) {
-      console.warn(`[Nodulus] Warning: NITS registry at "${fullPath}" has an invalid structure. Ignoring.`);
+      console.warn(`[System] Warning: NITS registry at "${fullPath}" has an invalid structure. Ignoring.`);
       return null;
     }
 
     if (data.version !== NITS_REGISTRY_VERSION) {
-      console.warn(`[Nodulus] Warning: NITS registry version mismatch (found ${data.version}, expected ${NITS_REGISTRY_VERSION}).`);
+      console.warn(`[System] Warning: NITS registry version mismatch (found ${data.version}, expected ${NITS_REGISTRY_VERSION}).`);
     }
 
     // Deep validation of module IDs
     for (const id of Object.keys(data.modules)) {
       if (!isValidModuleId(id)) {
-        console.warn(`[Nodulus] Warning: Corrupt NITS ID found in registry: ${id}. Registry considered invalid.`);
+        console.warn(`[System] Warning: Corrupt NITS ID found in registry: ${id}. Registry considered invalid.`);
         return null;
       }
     }
     
     return data as NitsRegistry;
   } catch (err: any) {
-    console.warn(`[Nodulus] Warning: Failed to load NITS registry at "${fullPath}": ${err.message}`);
+    console.warn(`[System] Warning: Failed to load NITS registry at "${fullPath}": ${err.message}`);
     return null;
   }
 }
@@ -105,7 +105,7 @@ function isValidRegistry(data: any): data is NitsRegistry {
 
     if (missing.length > 0) {
       console.warn(
-        `[Nodulus] Warning: Module record "${id}" is missing required fields: ${missing.join(', ')}. Registry considered invalid.`
+        `[System] Warning: Module record "${id}" is missing required fields: ${missing.join(', ')}. Registry considered invalid.`
       );
       return false;
     }
@@ -182,7 +182,7 @@ export function scanShadowFiles(
 ): Map<string, ShadowFileRecord> {
   const result = new Map<string, ShadowFileRecord>();
 
-  for (const { name, dirPath } of moduleDirs) {
+  for (const { dirPath } of moduleDirs) {
     try {
       const record = readShadowFile(dirPath);
       if (record) {

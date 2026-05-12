@@ -32,7 +32,7 @@ export function extractModuleImports(filePath: string): ImportFound[] {
           sourceType: "module",
         });
       } catch (e: any) {
-        console.warn(`[Nodulus] [NITS Parser] Warning: Failed to parse imports in "${filePath}".`);
+        console.warn(`[System] [NITS Parser] Warning: Failed to parse imports in "${filePath}".`);
         console.debug(`  Detail: ${e.message}`);
         return [];
       }
@@ -71,7 +71,7 @@ export function extractModuleImports(filePath: string): ImportFound[] {
        return [];
     }
     // General fallback warning
-    console.warn(`[Nodulus] [NITS Parser] Warning: Failed to parse imports in "${filePath}".`);
+    console.warn(`[System] [NITS Parser] Warning: Failed to parse imports in "${filePath}".`);
     console.debug(`  Detail: ${error.message}`);
     return [];
   }

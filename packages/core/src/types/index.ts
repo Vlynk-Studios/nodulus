@@ -177,7 +177,7 @@ export interface CreateAppOptions {
   /**
    * Custom log handler. Receives all Nodulus log events.
    * 
-   * Default: prints [Nodulus] prefixed messages to stderr (warn/error)
+   * Default: prints [System] prefixed messages to stderr (warn/error)
    * and stdout (info). debug is suppressed unless NODE_DEBUG includes 'nodulus'.
    */
   logger?: LogHandler;

@@ -117,7 +117,7 @@ describe("NITS App Lifecycle (Shadow File Integration)", () => {
     fs.rmSync(path.join(dir1, ".nodulus", "registry.json"), { force: true });
     cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(dir1);
 
-    let result = await createApp(makeMockApp() as any);
+    await createApp(makeMockApp() as any);
     const generatedRegistry = JSON.parse(fs.readFileSync(path.join(dir1, ".nodulus", "registry.json"), "utf8"));
     const realUsersMod = Object.values(generatedRegistry.modules).find((m: any) => m.name === 'users') as any;
     const realOrdersMod = Object.values(generatedRegistry.modules).find((m: any) => m.name === 'orders') as any;
@@ -159,7 +159,7 @@ describe("NITS App Lifecycle (Shadow File Integration)", () => {
     // 3. Second boot -> should upgrade legacy registry and generate new shadow files with preserved IDs
     const dir2 = createCycleDir(dir1);
     cwdSpy.mockReturnValue(dir2);
-    result = await createApp(makeMockApp() as any);
+    await createApp(makeMockApp() as any);
 
     const registryContentStr = fs.readFileSync(path.join(dir2, ".nodulus", "registry.json"), "utf8");
     console.log("Registry generated in step 3:", registryContentStr);
