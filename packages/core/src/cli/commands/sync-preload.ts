@@ -18,6 +18,65 @@ const getPkg = () => {
 };
 const pkg = getPkg();
 
+export async function runSyncPreload(logger: any, silent: boolean = false) {
+    const cwd = process.cwd();
+    
+    const hasJsConfig = fs.existsSync(path.join(cwd, 'nodulus.config.js'));
+    const hasTsConfig = fs.existsSync(path.join(cwd, 'nodulus.config.ts'));
+    if (!hasJsConfig && !hasTsConfig) {
+        logger.error('Could not load nodulus config. Make sure nodulus.config.js or ts exists in the project root.');
+        throw new Error('Config not found');
+    }
+
+    const config = await loadConfig();
+    
+    const nodulusDir = path.join(cwd, '.nodulus');
+    try {
+        if (!fs.existsSync(nodulusDir)) {
+            fs.mkdirSync(nodulusDir, { recursive: true });
+        }
+    } catch (err: any) {
+        logger.error(`Cannot create directory at .nodulus: ${err.message}`);
+        throw err;
+    }
+
+    const preloadPath = path.join(nodulusDir, 'preload.js');
+    const newContent = generatePreloadFile(config, pkg.version, cwd);
+
+    let isIdentical = false;
+    if (fs.existsSync(preloadPath)) {
+        const oldContent = fs.readFileSync(preloadPath, 'utf8');
+        if (oldContent === newContent) {
+            isIdentical = true;
+        }
+    }
+
+    if (isIdentical) {
+        if (!silent) {
+            logger.info('Pre-loader is already up to date (no changes).', { _module: 'alias' });
+        }
+        return;
+    }
+
+    try {
+        fs.writeFileSync(preloadPath, newContent, 'utf8');
+    } catch (err: any) {
+        if (err.code === 'EACCES') {
+            logger.error('Cannot write to .nodulus/preload.js — permission denied.', { _module: 'alias' });
+        } else {
+            logger.error(`Cannot write to .nodulus/preload.js: ${err.message}`, { _module: 'alias' });
+        }
+        throw err;
+    }
+    
+    logger.info(`Pre-loader updated at ${pc.cyan('.nodulus/preload.js')}`, { _module: 'alias' });
+
+    if (!silent) {
+        const ext = fs.existsSync(path.join(cwd, 'nodulus.config.ts')) ? 'ts' : 'js';
+        logger.info(`✔ Pre-loader sync complete. Your package.json scripts should include: "dev": "nodulus dev --watch src/app.${ext}"`, { _module: 'alias' });
+    }
+}
+
 export function syncPreloadCommand(): Command {
   const sync = new Command('sync-preload');
 
@@ -26,77 +85,9 @@ export function syncPreloadCommand(): Command {
     .option('--silent', 'Suppress output when preload is already up to date', false)
     .action(async (options) => {
         const logger = createLogger(defaultLogHandler, 'info', 'alias');
-        const cwd = process.cwd();
-        
         try {
-            const hasJsConfig = fs.existsSync(path.join(cwd, 'nodulus.config.js'));
-            const hasTsConfig = fs.existsSync(path.join(cwd, 'nodulus.config.ts'));
-            if (!hasJsConfig && !hasTsConfig) {
-                logger.error('Could not load nodulus config. Make sure nodulus.config.js exists in the project root.');
-                process.exit(1);
-            }
-
-            const config = await loadConfig();
-            
-            const nodulusDir = path.join(cwd, '.nodulus');
-            try {
-                if (!fs.existsSync(nodulusDir)) {
-                    fs.mkdirSync(nodulusDir, { recursive: true });
-                }
-            } catch (err: any) {
-                logger.error(`Cannot create directory at .nodulus: ${err.message}`);
-                process.exit(1);
-            }
-
-            const preloadPath = path.join(nodulusDir, 'preload.js');
-            const newContent = generatePreloadFile(config, pkg.version, cwd);
-
-            let isIdentical = false;
-            if (fs.existsSync(preloadPath)) {
-                const oldContent = fs.readFileSync(preloadPath, 'utf8');
-                if (oldContent === newContent) {
-                    isIdentical = true;
-                }
-            }
-
-            if (isIdentical) {
-                if (!options.silent) {
-                    logger.info('Pre-loader is already up to date (no changes).');
-                }
-                // salir silenciosamente
-                return;
-            }
-
-            // Regenerar
-            try {
-                fs.writeFileSync(preloadPath, newContent, 'utf8');
-            } catch (err: any) {
-                if (err.code === 'EACCES') {
-                    logger.error('Cannot write to .nodulus/preload.js — permission denied.');
-                } else {
-                    logger.error(`Cannot write to .nodulus/preload.js: ${err.message}`);
-                }
-                process.exit(1);
-            }
-            
-            logger.info(`Pre-loader updated at ${pc.cyan('.nodulus/preload.js')}`);
-
-            if (!options.silent) {
-                // Determine extension based on which config file exists.
-                // We default to 'ts' if for some reason neither is found (though loadConfig would have failed).
-                const ext = fs.existsSync(path.join(cwd, 'nodulus.config.ts')) ? 'ts' : 'js';
-
-                // Show the next steps block only when the user runs sync-preload manually
-                console.log(pc.green('\n✔ Pre-loader sync complete.\n'));
-                console.log('Your package.json scripts should look like this:');
-                console.log(pc.cyan(`  "dev":   "nodulus sync-preload --silent && nodulus dev --watch src/app.${ext}"`));
-                console.log(pc.cyan(`  "start": "node --import ./.nodulus/preload.js src/app.${ext}"\n`));
-                console.log('The pre-loader runs automatically on every "npm run dev".');
-                console.log('To update manually: nodulus sync-preload\n');
-            }
-
-        } catch (err: any) {
-            logger.error(`Failed to sync preload: ${err.message}`);
+            await runSyncPreload(logger, options.silent);
+        } catch (_err: any) {
             process.exit(1);
         }
     });
