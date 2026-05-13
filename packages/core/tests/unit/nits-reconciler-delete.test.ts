@@ -423,6 +423,107 @@ describe("NITS Reconciler — buildUpdatedNitsRegistry: atomic purge", () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+describe("NITS Reconciler — Clonación de Shadow File", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("mismo shadowFile.id en dos discovered: el de path coincidente mantiene ID, el otro recibe ID nuevo → newModules", async () => {
+    const previous = makeRegistry({
+      mod_aabbccdd: makeTrackedRecord("mod_aabbccdd", "auth", "src/auth"),
+    });
+
+    // Two discovered modules share the same shadow ID; one matches the registry path.
+    const discovered = [
+      makeDisc("auth",      `${CWD}/src/auth`,      "mod_aabbccdd"), // original path
+      makeDisc("auth-copy", `${CWD}/src/auth-copy`, "mod_aabbccdd"), // cloned
+    ];
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await reconcile(discovered, previous, CWD);
+
+    // Original stays confirmed with same ID
+    expect(result.confirmed).toHaveLength(1);
+    expect(result.confirmed[0].id).toBe("mod_aabbccdd");
+    expect(result.confirmed[0].resolvedBy).toBe("shadow-file");
+
+    // Clone is registered as a brand-new module with a different ID
+    expect(result.newModules).toHaveLength(1);
+    expect(result.newModules[0].id).not.toBe("mod_aabbccdd");
+    expect(result.newModules[0].id).toMatch(/^mod_[0-9a-f]{8}$/);
+    expect(result.newModules[0].name).toBe("auth-copy");
+
+    warnSpy.mockRestore();
+  });
+
+  it("warning de clonación se emite exactamente una vez por colisión", async () => {
+    const previous = makeRegistry({
+      mod_aabbccdd: makeTrackedRecord("mod_aabbccdd", "auth", "src/auth"),
+    });
+
+    const discovered = [
+      makeDisc("auth",      `${CWD}/src/auth`,      "mod_aabbccdd"),
+      makeDisc("auth-copy", `${CWD}/src/auth-copy`, "mod_aabbccdd"),
+    ];
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await reconcile(discovered, previous, CWD);
+
+    const cloneWarnings = warnSpy.mock.calls.filter(
+      ([msg]) => typeof msg === "string" && msg.includes("Duplicate module identity detected")
+    );
+    // Exactly ONE warning per collision (the clone, not the original)
+    expect(cloneWarnings).toHaveLength(1);
+
+    warnSpy.mockRestore();
+  });
+
+  it("dos discovered con mismo shadowFile.id, ninguno en registry previo → ambos IDs nuevos, at-least-one warning", async () => {
+    // Empty registry — neither module is known.
+    // Design: when no prev record anchors an "original", the reconciler uses
+    // discs[0].dirPath as the reference path. Because prev is undefined, the
+    // branch `isOriginal && prev` is always false, so EVERY disc in the collision
+    // set goes through the clone path (new ID + warning). Result: 2 new modules
+    // and 2 warnings (one per cloned module).
+    const previous = makeRegistry({});
+
+    const discovered = [
+      makeDisc("alpha", `${CWD}/src/alpha`, "mod_deadbeef"),
+      makeDisc("beta",  `${CWD}/src/beta`,  "mod_deadbeef"), // shares ID with alpha
+    ];
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await reconcile(discovered, previous, CWD);
+
+    // Both end up as new modules — none can claim the original ID
+    expect(result.newModules).toHaveLength(2);
+    expect(result.confirmed).toHaveLength(0);
+
+    // Both IDs must be valid format
+    for (const m of result.newModules) {
+      expect(m.id).toMatch(/^mod_[0-9a-f]{8}$/);
+    }
+
+    // The two generated IDs must differ from each other and from the shared shadow ID
+    const ids = result.newModules.map((m) => m.id);
+    expect(ids[0]).not.toBe(ids[1]);
+    expect(ids[0]).not.toBe("mod_deadbeef");
+    expect(ids[1]).not.toBe("mod_deadbeef");
+
+    // At least one warning is emitted (one per cloned disc — both are treated as
+    // clones when there is no prev registry record to anchor the original)
+    const cloneWarnings = warnSpy.mock.calls.filter(
+      ([msg]) => typeof msg === "string" && msg.includes("Duplicate module identity detected")
+    );
+    expect(cloneWarnings.length).toBeGreaterThanOrEqual(1);
+
+    warnSpy.mockRestore();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 describe("NITS Reconciler — Backward Compatibility", () => {
   beforeEach(() => vi.resetAllMocks());
 
