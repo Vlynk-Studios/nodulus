@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.7] — 2026-05-13
+
+### Added
+- **NITS Delete Detection**: The reconciler now distinguishes between `STALE` modules (missing from disk, 3-cycle grace period) and `DELETED` modules (confirmed missing via Shadow File ID).
+- **Registry Purge**: Modules confirmed as deleted are now automatically purged from `registry.json` at the end of the bootstrap or check cycle.
+- **NITS Security Guards**:
+  - **Layer 1 Filter**: Automatic filtering of compilation artifacts (e.g., `dist/`) from the registry if they fall outside the configured `modules` roots.
+  - **Layer 2 Guard**: Blocked creation of `.nodulus` shadow files in non-source directories (e.g., build outputs).
+- **Enhanced `nodulus check`**:
+  - Distinct reporting for `DELETED` (✖) vs `STALE` (⚠) modules.
+  - Updated summary line: `Summary: X OK, X moved, X deleted, X stale, X new`.
+  - Non-zero exit code (1) when deleted or stale modules are found.
+
+### Changed
+- **NITS Reconciliation Step 0**: Elevated Shadow File ID matching to the highest priority, enabling 100% confidence moves even with aggressive name and content changes.
+- **Cross-platform Paths**: Improved path normalization for NITS guards on Windows environments.
+- **Advanced Glob Support**: NITS root detection now supports glob brace expansion (e.g., `{src/modules/*,src/domains/*}`).
+
 ## [1.5.5] — 2026-05-11
 
 ### Added

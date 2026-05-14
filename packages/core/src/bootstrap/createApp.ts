@@ -177,6 +177,24 @@ export async function createApp(
 
       const cwd = process.cwd();
       const oldRegistry = await loadNitsRegistry(cwd) || initNitsRegistry(inferProjectName(cwd));
+
+      // Layer 1 Filter: Purge compilation artifacts (e.g. dist/) from registry
+      const rawGlobs = Array.isArray(config.modules) ? config.modules : 
+        (typeof config.modules === 'string' && config.modules.startsWith('{') && config.modules.endsWith('}')) 
+          ? config.modules.slice(1, -1).split(',') 
+          : [config.modules];
+          
+      const modulesRoots = rawGlobs.map(g => normalizePath(path.resolve(cwd, g.split('*')[0])));
+      
+      for (const [id, mod] of Object.entries(oldRegistry.modules)) {
+        const absPath = normalizePath(path.resolve(cwd, mod.path));
+        const isWithinRoots = modulesRoots.some(root => absPath.startsWith(root));
+        if (!isWithinRoots) {
+          log.warn(`[NITS] Purging artifact from registry: ${mod.path}`, { _module: 'nits' });
+          delete oldRegistry.modules[id];
+        }
+      }
+
       const nitsResult = await reconcile(discovered, oldRegistry, cwd, {
         similarityThreshold: config.nits?.similarityThreshold
       });
@@ -193,7 +211,8 @@ export async function createApp(
       const resolvedDirs = new Map<string, string>(
         resolvedModules.map(m => [m.dirPath, m.name])
       );
-      postReconcileEnsureShadowFiles(nitsResult, resolvedDirs);
+      // Pass all valid roots for shadow file creation guard
+      postReconcileEnsureShadowFiles(nitsResult, resolvedDirs, modulesRoots);
 
       // Seed the registry with the reconciled IDs
       const nitsIdMap = buildNitsIdMap(nitsResult, cwd);

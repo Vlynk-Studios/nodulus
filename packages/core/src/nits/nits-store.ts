@@ -215,7 +215,8 @@ export function scanShadowFiles(
  */
 export function postReconcileEnsureShadowFiles(
   result: ReconciliationResult,
-  resolvedDirs: Map<string, string>
+  resolvedDirs: Map<string, string>,
+  modulesRoots: string[]
 ): void {
   // Only act on modules resolved by path or Jaccard — shadow-file resolved
   // modules already have their file; new modules will get one on the next step.
@@ -232,7 +233,7 @@ export function postReconcileEnsureShadowFiles(
       const relPath = path.relative(process.cwd(), dirPath).replace(/\\/g, '/');
       if (relPath === record.path || dirPath === record.path) {
         // ensureShadowFile is idempotent: skips if file already valid.
-        ensureShadowFile(dirPath, name, record.id);
+        ensureShadowFile(dirPath, name, record.id, modulesRoots);
         break;
       }
     }

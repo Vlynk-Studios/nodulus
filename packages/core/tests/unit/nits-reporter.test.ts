@@ -101,7 +101,7 @@ describe('reportReconciliation()', () => {
     const warnOutput = (log.warn as any).mock.calls[0][0];
     expect(warnOutput).toMatch(/Module 'payments' not found on disk/);
     expect(warnOutput).toMatch(/\s{11}Last location: src\/payments/);
-    expect(warnOutput).toMatch(/\s{11}Will be removed from registry if absent next cycle\./);
+    expect(warnOutput).toMatch(/\s{11}Will be removed from registry if absent for 2 more cycle\(s\)\./);
   });
 
   it('reports candidates (possible relocations)', () => {

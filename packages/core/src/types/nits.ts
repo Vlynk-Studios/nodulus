@@ -36,6 +36,12 @@ export interface NitsModuleRecord {
    */
   shadowFileId?: string;
   /**
+   * Tracks how many consecutive cycles this module has been missing from disk.
+   * Used to provide a grace period (e.g., 3 cycles) before confirming a delete.
+   * @since v1.5.5
+   */
+  missingCount?: number;
+  /**
    * How identity was resolved for this record in the last reconciliation cycle.
    * - `'shadow-file'` — matched via `.nodulus` ID (highest confidence).
    * - `'path'`        — matched via exact directory path (Step 1 / Jaccard fallback).

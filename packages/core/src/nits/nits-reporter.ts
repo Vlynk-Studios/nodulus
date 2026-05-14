@@ -40,9 +40,10 @@ export function reportReconciliation(result: ReconciliationResult, log: Logger):
 
   if (result.stale.length > 0) {
     for (const m of result.stale) {
+      const remaining = 3 - (m.missingCount || 1);
       let msg = `Module '${pc.bold(m.name)}' not found on disk — marked stale.\n`;
       msg += `           ${pc.gray('Last location:')} ${pc.gray(m.path)}\n`;
-      msg += `           Will be removed from registry if absent next cycle.\n`;
+      msg += `           Will be removed from registry if absent for ${remaining} more cycle(s).\n`;
       msg += `           If it was moved, ensure the new directory has Module().`;
       
       log.warn(msg, { _module: 'nits' });

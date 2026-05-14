@@ -224,18 +224,31 @@ describe("NITS Reconciler — Step 0: Shadow File ID Resolution", () => {
 describe("NITS Reconciler — Confirmed Delete Detection", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("tracked module (has shadowFileId) absent from discovered → goes to deleted, NOT stale", async () => {
+  it("tracked module (has shadowFileId) absent from discovered for 3 cycles → goes to deleted", async () => {
     const previous = makeRegistry({
-      mod_11223344: makeTrackedRecord("mod_11223344", "auth", "src/auth"),
+      mod_11223344: makeTrackedRecord("mod_11223344", "auth", "src/auth", { missingCount: 2 }),
     });
 
-    // Empty discovered — module is gone
+    // Empty discovered — module is gone for the 3rd time
     const result = await reconcile([], previous, CWD);
 
     expect(result.deleted).toHaveLength(1);
     expect(result.deleted[0].id).toBe("mod_11223344");
     expect(result.deleted[0].status).toBe("deleted");
     expect(result.stale).toHaveLength(0);
+  });
+
+  it("tracked module (has shadowFileId) absent from discovered for 1 cycle → goes to stale", async () => {
+    const previous = makeRegistry({
+      mod_11223344: makeTrackedRecord("mod_11223344", "auth", "src/auth"),
+    });
+
+    // Empty discovered
+    const result = await reconcile([], previous, CWD);
+
+    expect(result.deleted).toHaveLength(0);
+    expect(result.stale).toHaveLength(1);
+    expect(result.stale[0].missingCount).toBe(1);
   });
 
   it("legacy module (no shadowFileId) absent from discovered → goes to stale (backward compat)", async () => {
@@ -251,7 +264,7 @@ describe("NITS Reconciler — Confirmed Delete Detection", () => {
     expect(result.deleted).toHaveLength(0);
   });
 
-  it("mixed registry: tracked + legacy absent → tracked → deleted, legacy → stale (same cycle)", async () => {
+  it("mixed registry: tracked + legacy absent → both go to stale for 1st cycle", async () => {
     const previous = makeRegistry({
       mod_tracked: makeTrackedRecord("mod_tracked", "tracked", "src/tracked"),
       mod_legacy:  makeLegacyRecord("mod_legacy",   "legacy",  "src/legacy"),
@@ -259,31 +272,13 @@ describe("NITS Reconciler — Confirmed Delete Detection", () => {
 
     const result = await reconcile([], previous, CWD);
 
-    expect(result.deleted).toHaveLength(1);
-    expect(result.deleted[0].id).toBe("mod_tracked");
-
-    expect(result.stale).toHaveLength(1);
-    expect(result.stale[0].id).toBe("mod_legacy");
+    expect(result.deleted).toHaveLength(0);
+    expect(result.stale).toHaveLength(2);
+    expect(result.stale[0].id).toBe("mod_tracked");
+    expect(result.stale[1].id).toBe("mod_legacy");
   });
 
-  it("console.info is emitted exactly once per confirmed delete", async () => {
-    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 
-    const previous = makeRegistry({
-      mod_11223344: makeTrackedRecord("mod_11223344", "auth", "src/auth"),
-      mod_55667788: makeTrackedRecord("mod_55667788", "shop", "src/shop"),
-    });
-
-    await reconcile([], previous, CWD);
-
-    // One log per deleted module (from FINALIZATION in reconcile())
-    const deleteLogs = infoSpy.mock.calls.filter(
-      ([msg]) => typeof msg === "string" && msg.includes("Delete confirmed")
-    );
-    expect(deleteLogs).toHaveLength(2);
-
-    infoSpy.mockRestore();
-  });
 
   it("all modules move with shadow files in the same cycle → deleted bucket stays empty", async () => {
     const previous = makeRegistry({
@@ -402,23 +397,7 @@ describe("NITS Reconciler — buildUpdatedNitsRegistry: atomic purge", () => {
     expect((registry.modules["mod_check"] as any).resolvedBy).toBeUndefined();
   });
 
-  it("purge log emitted once per deleted module in buildUpdatedNitsRegistry", () => {
-    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 
-    const result = makeFullResult([
-      makeDeletedRecord("mod_a1b2c3d4", "gone1"),
-      makeDeletedRecord("mod_e5f6a7b8", "gone2"),
-    ]);
-
-    buildUpdatedNitsRegistry(result, "test");
-
-    const purgeLogs = infoSpy.mock.calls.filter(
-      ([msg]) => typeof msg === "string" && msg.includes("Purging")
-    );
-    expect(purgeLogs).toHaveLength(2);
-
-    infoSpy.mockRestore();
-  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

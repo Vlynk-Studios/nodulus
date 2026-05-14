@@ -341,17 +341,23 @@ export async function reconcile(
       // Step 0 would have matched it if its .nodulus file were still on disk
       // anywhere this cycle (even at a different path — that's a move).
       // Its absence here means the directory — and its .nodulus file — are
-      // genuinely gone. This is a confirmed delete: purge from registry.
-      console.info(
-        `[NITS] Delete confirmed: "${prev.name}" (${prev.id}) — shadow ID "${prev.shadowFileId}" not found on disk this cycle. Removing from registry.`
-      );
-      result.deleted.push({ ...prev, status: 'deleted' });
+      // genuinely gone. We implement a 3-cycle grace period before confirming a delete.
+      const missingCount = (prev.missingCount || 0) + 1;
+      if (missingCount >= 3) {
+        result.deleted.push({ ...prev, status: 'deleted', missingCount });
+      } else {
+        result.stale.push({ ...prev, status: 'stale', missingCount });
+      }
     } else {
       // Legacy module (pre-v1.5.5) or module whose shadow file write failed
       // last cycle. Without a shadow ID we cannot distinguish delete from a
-      // missed move. Fall back to the classic stale path: one-cycle grace
-      // period, then Step 3 (name-based candidate) can rescue it next boot.
-      result.stale.push({ ...prev, status: 'stale' });
+      // missed move. Fall back to a 3-cycle grace period too.
+      const missingCount = (prev.missingCount || 0) + 1;
+      if (missingCount >= 3) {
+        result.deleted.push({ ...prev, status: 'deleted', missingCount });
+      } else {
+        result.stale.push({ ...prev, status: 'stale', missingCount });
+      }
     }
   }
 
@@ -367,15 +373,8 @@ export function buildUpdatedNitsRegistry(
 ): NitsRegistry {
   const modules: Record<string, NitsModuleRecord> = {};
 
-  // Log each confirmed delete before excluding it from the persisted registry.
-  // Note: `reconcile()` already emits a detection-level log when modules enter
-  // the `deleted` bucket. This log marks the registry-write action — the two
-  // events are distinct and both useful for tracing across the pipeline.
-  for (const deleted of result.deleted) {
-    console.info(
-      `[NITS] Purging "${deleted.name}" (${deleted.id}) from registry — confirmed delete.`
-    );
-  }
+  // Confirmed deletes will be handled and logged by the reporter.
+  // Duplicate console.info logs were removed to keep the output clean.
 
   const allActive = [
     ...result.confirmed,
