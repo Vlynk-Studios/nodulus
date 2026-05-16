@@ -91,6 +91,24 @@ export function checkCommand(): Command {
             }
 
             const oldRegistry = await loadNitsRegistry(cwd) || initNitsRegistry(inferProjectName(cwd));
+
+            // Layer 1 Filter: Purge compilation artifacts (e.g. dist/) from registry
+            const rawGlobs = Array.isArray(config.modules) ? config.modules : 
+              (typeof config.modules === 'string' && config.modules.startsWith('{') && config.modules.endsWith('}')) 
+                ? config.modules.slice(1, -1).split(',') 
+                : [config.modules];
+                
+            const modulesRoots = rawGlobs.map(g => path.resolve(cwd, g.split('*')[0]).replace(/\\/g, '/'));
+            
+            for (const [id, mod] of Object.entries(oldRegistry.modules)) {
+              const absPath = path.resolve(cwd, mod.path).replace(/\\/g, '/');
+              const isWithinRoots = modulesRoots.some(root => absPath.startsWith(root));
+              if (!isWithinRoots) {
+                logger.warn(`[NITS] Purging artifact from registry: ${mod.path}`);
+                delete oldRegistry.modules[id];
+              }
+            }
+
             const result = await reconcile(discovered, oldRegistry, cwd, {
               similarityThreshold: config.nits.similarityThreshold
             });
@@ -124,7 +142,7 @@ export function checkCommand(): Command {
               node.resolvedBy = recordByAbsPath.get(absPath)?.resolvedBy;
             }
 
-            const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0;
+            const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0 || result.deleted.length > 0;
             if (hasChanges && options.format !== 'json') {
               const logger = createLogger(defaultLogHandler, 'info', 'check');
               reportReconciliation(result, logger);
@@ -207,7 +225,36 @@ export function checkCommand(): Command {
           }
         }
 
+        if (nitsResult && !options.module) {
+          for (const rec of (nitsResult.deleted || [])) {
+            const showId = options.verbose;
+            const idStr = showId ? pc.gray(` [${rec.id}]`) : '';
+            const hint = showId ? pc.gray(' (confirmed, removed from registry)') : '';
+            console.log(pc.red(`✖ ${rec.name}${idStr} — DELETED`) + hint);
+          }
+          
+          for (const rec of (nitsResult.stale || [])) {
+            const showId = options.verbose;
+            const idStr = showId ? pc.gray(` [${rec.id}]`) : '';
+            const hint = showId ? pc.gray(' (missing from disk, identity unconfirmed)') : '';
+            console.log(pc.yellow(`⚠ ${rec.name}${idStr} — STALE`) + hint);
+          }
+        }
+
         console.log(`\n${violations.length} problem(s) found.`);
+
+        if (nitsResult) {
+          const okCount = nitsResult.confirmed?.length || 0;
+          const movedCount = nitsResult.moved?.length || 0;
+          const deletedCount = nitsResult.deleted?.length || 0;
+          const staleCount = nitsResult.stale?.length || 0;
+          const newCount = nitsResult.newModules?.length || 0;
+          console.log(`Summary: ${okCount} OK, ${movedCount} moved, ${deletedCount} deleted, ${staleCount} stale, ${newCount} new`);
+          
+          if (staleCount > 0 || deletedCount > 0) {
+            process.exitCode = 1;
+          }
+        }
 
         if (options.strict && violations.length > 0) {
           throw new Error('Structural integrity violations found.');

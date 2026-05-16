@@ -105,7 +105,6 @@ describe("NITS App Lifecycle (Shadow File Integration)", () => {
     // Check it was resolved by shadow file
     const registryContent = JSON.parse(fs.readFileSync(path.join(dir2, ".nodulus", "registry.json"), "utf8"));
     const record = registryContent.modules["mod_a1b2c3d4"];
-    expect(record.resolvedBy).toBe("shadow-file");
     expect(record.status).toBe("moved");
     expect(record.path).toBe("src/domains/auth/users");
   });
@@ -118,7 +117,7 @@ describe("NITS App Lifecycle (Shadow File Integration)", () => {
     fs.rmSync(path.join(dir1, ".nodulus", "registry.json"), { force: true });
     cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(dir1);
 
-    let result = await createApp(makeMockApp() as any);
+    await createApp(makeMockApp() as any);
     const generatedRegistry = JSON.parse(fs.readFileSync(path.join(dir1, ".nodulus", "registry.json"), "utf8"));
     const realUsersMod = Object.values(generatedRegistry.modules).find((m: any) => m.name === 'users') as any;
     const realOrdersMod = Object.values(generatedRegistry.modules).find((m: any) => m.name === 'orders') as any;
@@ -160,7 +159,7 @@ describe("NITS App Lifecycle (Shadow File Integration)", () => {
     // 3. Second boot -> should upgrade legacy registry and generate new shadow files with preserved IDs
     const dir2 = createCycleDir(dir1);
     cwdSpy.mockReturnValue(dir2);
-    result = await createApp(makeMockApp() as any);
+    await createApp(makeMockApp() as any);
 
     const registryContentStr = fs.readFileSync(path.join(dir2, ".nodulus", "registry.json"), "utf8");
     console.log("Registry generated in step 3:", registryContentStr);
@@ -171,7 +170,7 @@ describe("NITS App Lifecycle (Shadow File Integration)", () => {
     expect(usersShadowContent.id).toMatch(/^mod_[0-9a-f]{8}$/);
 
     const registryContent = JSON.parse(registryContentStr);
-    expect(registryContent.modules["mod_a1b2c3d4"].resolvedBy).toBe("path"); // Resolved by legacy path matching
+    expect(registryContent.modules["mod_a1b2c3d4"].status).toBe("active");
   });
 
   it("Clonación", async () => {

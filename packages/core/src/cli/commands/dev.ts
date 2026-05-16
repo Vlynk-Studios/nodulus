@@ -21,6 +21,16 @@ export function devCommand(): Command {
     .action(async (entrypoint, options) => {
         const logger = createLogger(defaultLogHandler, 'info', 'dev');
         const cwd = process.cwd();
+
+        try {
+            const { runSyncPreload } = await import('./sync-preload.js');
+            const { runSyncTsconfig } = await import('./sync-tsconfig.js');
+            await runSyncPreload(logger, true);
+            await runSyncTsconfig(logger, 'tsconfig.json', true);
+        } catch (err: any) {
+            logger.debug(`Auto-setup failed: ${err.message}`, { _module: 'dev' });
+        }
+
         const preloadPath = path.join(cwd, '.nodulus', 'preload.js');
         const hasPreload = fs.existsSync(preloadPath);
 
@@ -33,7 +43,7 @@ export function devCommand(): Command {
         if (hasPreload) {
             args.push('--import', './.nodulus/preload.js');
         } else {
-            logger.warn('Pre-loader not found. Run: nodulus sync-preload');
+            logger.warn('Pre-loader not found and auto-generation failed.');
         }
 
         args.push(entrypoint);

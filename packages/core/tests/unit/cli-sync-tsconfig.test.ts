@@ -8,6 +8,22 @@ import { loadConfig } from "../../src/core/config.js";
 vi.mock("fast-glob", () => ({ default: vi.fn() }));
 vi.mock("../../src/core/config.js", () => ({ loadConfig: vi.fn() }));
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const makeBaseConfig = (overrides: Record<string, unknown> = {}) => ({
+  modules: "src/modules/*",
+  aliases: {} as Record<string, string>,
+  prefix: "",
+  strict: true,
+  resolveAliases: true,
+  logger: {} as any,
+  logLevel: "info" as const,
+  logFormat: "auto" as const,
+  requirePreloader: false,
+  nits: { enabled: false },
+  ...overrides,
+});
+
 describe("CLI: sync-tsconfig", () => {
   let _mockConsoleError: any;
   let _mockConsoleLog: any;
@@ -38,7 +54,31 @@ describe("CLI: sync-tsconfig", () => {
   };
 
   it("throws a descriptive error if tsconfig.json does not exist", async () => {
-    await expect(runCommand(["--tsconfig", "nonexistent.json"])).rejects.toThrow(/Could not find nonexistent.json/i);
+    // The command's .action() catches all errors and calls process.exit(1) rather
+    // than re-throwing. We intercept both process.exit and pino's stdout output.
+    // (defaultLogHandler → pino writes JSON to process.stdout, not console.error)
+    let capturedCode: number | undefined;
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
+      capturedCode = code;
+      throw new Error(`process.exit(${code})`); // abort execution
+    }) as any);
+
+    const chunks: string[] = [];
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+      chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+      return true;
+    });
+
+    await expect(runCommand(["--tsconfig", "nonexistent.json"])).rejects.toThrow("process.exit(1)");
+
+    expect(capturedCode).toBe(1);
+
+    // Pino logs the error as a JSON line — verify "nonexistent.json" appears in output
+    const output = chunks.join("");
+    expect(output).toMatch(/nonexistent\.json/i);
+
+    stdoutSpy.mockRestore();
+    exitSpy.mockRestore();
   });
 
   it("adds paths correctly to a tsconfig without previous paths", async () => {
@@ -47,12 +87,9 @@ describe("CLI: sync-tsconfig", () => {
     fs.writeFileSync(tsconfigPath, JSON.stringify(initialConfig, null, 2), "utf8");
 
     // 2. Setup mock modules & configs
-    vi.mocked(loadConfig).mockResolvedValue({
-      modules: "src/modules/*",
-      aliases: { "@config": "./src/config" },
-      prefix: "", strict: true, resolveAliases: true, logger: {} as any, logLevel: "info",
-      nits: { enabled: false }
-    });
+    vi.mocked(loadConfig).mockResolvedValue(
+      makeBaseConfig({ aliases: { "@config": "./src/config" } }) as any
+    );
     vi.mocked(fg).mockResolvedValue([
       path.resolve(process.cwd(), "src/modules/auth"),
       path.resolve(process.cwd(), "src/modules/users")
@@ -92,12 +129,9 @@ describe("CLI: sync-tsconfig", () => {
     }`;
     fs.writeFileSync(tsconfigPath, commentedJson, "utf8");
 
-    vi.mocked(loadConfig).mockResolvedValue({
-      modules: "src/modules/*",
-      aliases: {},
-      prefix: "", strict: true, resolveAliases: true, logger: {} as any, logLevel: "info",
-      nits: { enabled: false }
-    });
+    vi.mocked(loadConfig).mockResolvedValue(
+      makeBaseConfig() as any
+    );
     vi.mocked(fg).mockResolvedValue([path.resolve(process.cwd(), "src/modules/new")]);
     fs.mkdirSync(path.resolve(process.cwd(), "src/modules/new"), { recursive: true });
     fs.writeFileSync(path.resolve(process.cwd(), "src/modules/new/index.ts"), "");
@@ -117,12 +151,9 @@ describe("CLI: sync-tsconfig", () => {
     const initialConfig = { compilerOptions: { target: "es2022", paths: {} } };
     fs.writeFileSync(tsconfigPath, JSON.stringify(initialConfig, null, 2), "utf8");
 
-    vi.mocked(loadConfig).mockResolvedValue({
-      modules: "src/modules/*",
-      aliases: {},
-      prefix: "", strict: true, resolveAliases: true, logger: {} as any, logLevel: "info",
-      nits: { enabled: false }
-    });
+    vi.mocked(loadConfig).mockResolvedValue(
+      makeBaseConfig() as any
+    );
     vi.mocked(fg).mockResolvedValue([path.resolve(process.cwd(), "src/modules/auth")]);
     fs.mkdirSync(path.resolve(process.cwd(), "src/modules/auth"), { recursive: true });
     fs.writeFileSync(path.resolve(process.cwd(), "src/modules/auth/index.ts"), "");
@@ -153,12 +184,9 @@ describe("CLI: sync-tsconfig", () => {
     };
     fs.writeFileSync(tsconfigPath, JSON.stringify(initialConfig, null, 2), "utf8");
 
-    vi.mocked(loadConfig).mockResolvedValue({
-      modules: "src/modules/*",
-      aliases: {}, // @config exists no more!
-      prefix: "", strict: true, resolveAliases: true, logger: {} as any, logLevel: "info",
-      nits: { enabled: false }
-    });
+    vi.mocked(loadConfig).mockResolvedValue(
+      makeBaseConfig({ aliases: {} }) as any // @config exists no more!
+    );
     // Returning NO active modules -> Should trigger garbage collection of @modules/stale
     vi.mocked(fg).mockResolvedValue([]);
 
@@ -178,13 +206,9 @@ describe("CLI: sync-tsconfig", () => {
     const initialConfig = { compilerOptions: { target: "es2022", paths: {} } };
     fs.writeFileSync(tsconfigPath, JSON.stringify(initialConfig, null, 2), "utf8");
 
-    vi.mocked(loadConfig).mockResolvedValue({
-      modules: "src/modules/*",
-      domains: "src/domains/*",
-      aliases: {},
-      prefix: "", strict: true, resolveAliases: true, logger: {} as any, logLevel: "info",
-      nits: { enabled: false }
-    });
+    vi.mocked(loadConfig).mockResolvedValue(
+      makeBaseConfig({ domains: "src/domains/*", aliases: {} }) as any
+    );
 
     vi.mocked(fg).mockImplementation((glob) => {
       if (typeof glob === 'string') {
@@ -221,16 +245,15 @@ describe("CLI: sync-tsconfig", () => {
     const initialConfig = { compilerOptions: { paths: {} } };
     fs.writeFileSync(tsconfigPath, JSON.stringify(initialConfig, null, 2), "utf8");
 
-    vi.mocked(loadConfig).mockResolvedValue({
-      modules: "src/modules/*",
-      aliases: { 
-        "@utils": "./src/shared/utils.ts",
-        "@lib": "./src/lib/main.js",
-        "@styles": "./src/assets/theme.json"
-      },
-      prefix: "", strict: true, resolveAliases: true, logger: {} as any, logLevel: "info",
-      nits: { enabled: false }
-    });
+    vi.mocked(loadConfig).mockResolvedValue(
+      makeBaseConfig({
+        aliases: {
+          "@utils": "./src/shared/utils.ts",
+          "@lib": "./src/lib/main.js",
+          "@styles": "./src/assets/theme.json",
+        },
+      }) as any
+    );
     vi.mocked(fg).mockResolvedValue([]);
 
     await runCommand(["--tsconfig", tsconfigPath]);
@@ -252,16 +275,15 @@ describe("CLI: sync-tsconfig", () => {
     const initialConfig = { compilerOptions: { paths: {} } };
     fs.writeFileSync(tsconfigPath, JSON.stringify(initialConfig, null, 2), "utf8");
 
-    vi.mocked(loadConfig).mockResolvedValue({
-      modules: "src/modules/*",
-      aliases: { 
-        "@config": "./src/config",
-        "@middleware": "./src/middleware",
-        "@shared": "./src/shared"
-      },
-      prefix: "", strict: true, resolveAliases: true, logger: {} as any, logLevel: "info",
-      nits: { enabled: false }
-    });
+    vi.mocked(loadConfig).mockResolvedValue(
+      makeBaseConfig({
+        aliases: {
+          "@config": "./src/config",
+          "@middleware": "./src/middleware",
+          "@shared": "./src/shared",
+        },
+      }) as any
+    );
     vi.mocked(fg).mockResolvedValue([]);
 
     await runCommand(["--tsconfig", tsconfigPath]);

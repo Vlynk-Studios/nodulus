@@ -185,14 +185,20 @@ describe('CLI: sync-preload', () => {
 
   it('without --silent, shows next steps block when regenerating', async () => {
     vi.mocked(loadConfig).mockResolvedValue(makeBaseConfig({ aliases: { '@a': './src/a' } }));
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    
-    await runCommand([]); // default
-    
-    expect(consoleSpy).toHaveBeenCalledWith('Your package.json scripts should look like this:');
-    // Also assert it includes the generated dev command (defaults to .js in test env)
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"nodulus sync-preload --silent && nodulus dev --watch src/app.js"'));
-    consoleSpy.mockRestore();
+
+    // The command uses logger.info() (pino), which writes to process.stdout — not console.log.
+    // stdoutSpy is already wired in beforeEach.
+    stdoutSpy.mockClear();
+    await runCommand([]); // default (no --silent flag)
+
+    // At least one pino log line must mention the next-steps hint.
+    // sync-preload.ts line 76: logger.info(`✔ Pre-loader sync complete. Your package.json scripts should include: ...`)
+    const written = stdoutSpy.mock.calls.map(([chunk]: [string | Uint8Array]) =>
+      typeof chunk === 'string' ? chunk : chunk?.toString?.() ?? ''
+    ).join('');
+
+    expect(written).toContain('Pre-loader sync complete');
+    expect(written).toContain('nodulus dev --watch src/app.');
   });
 
   it('exits with code 1 when loadConfig throws (invalid config)', async () => {

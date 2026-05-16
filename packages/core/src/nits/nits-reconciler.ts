@@ -58,6 +58,7 @@ export async function reconcile(
     moved: [],
     candidates: [],
     stale: [],
+    deleted: [],     // confirmed deletes — shadow ID absent from all discovered modules in this cycle
     newModules: []
   };
 
@@ -98,6 +99,10 @@ export async function reconcile(
     lastSeen: timestamp,
     identifiers: disc.identifiers,
     resolvedBy,
+    // Persist the shadow file ID so delete-detection can verify whether this
+    // module's identity appears on disk in subsequent reconciliation cycles.
+    // Absent for legacy modules (no .nodulus file) — Jaccard is used as fallback.
+    shadowFileId: disc.shadowFile?.id,
   });
 
   // ── STEP 0 (NEW): Match by Shadow File ID ──────────────────────────────────
@@ -109,7 +114,7 @@ export async function reconcile(
   // fresh ID and a warning.
   const shadowIdToDiscovered = new Map<string, DiscoveredModule[]>();
   for (const disc of unmatchedDiscovered) {
-    if (disc.shadowFile) {
+    if (disc.shadowFile?.id) {
       const arr = shadowIdToDiscovered.get(disc.shadowFile.id) ?? [];
       arr.push(disc);
       shadowIdToDiscovered.set(disc.shadowFile.id, arr);
@@ -331,7 +336,29 @@ export async function reconcile(
   }
 
   for (const prev of unmatchedPrev) {
-    result.stale.push({ ...prev, status: 'stale' });
+    if (prev.shadowFileId) {
+      // This module had a tracked shadow identity in the previous registry.
+      // Step 0 would have matched it if its .nodulus file were still on disk
+      // anywhere this cycle (even at a different path — that's a move).
+      // Its absence here means the directory — and its .nodulus file — are
+      // genuinely gone. We implement a 3-cycle grace period before confirming a delete.
+      const missingCount = (prev.missingCount || 0) + 1;
+      if (missingCount >= 3) {
+        result.deleted.push({ ...prev, status: 'deleted', missingCount });
+      } else {
+        result.stale.push({ ...prev, status: 'stale', missingCount });
+      }
+    } else {
+      // Legacy module (pre-v1.5.5) or module whose shadow file write failed
+      // last cycle. Without a shadow ID we cannot distinguish delete from a
+      // missed move. Fall back to a 3-cycle grace period too.
+      const missingCount = (prev.missingCount || 0) + 1;
+      if (missingCount >= 3) {
+        result.deleted.push({ ...prev, status: 'deleted', missingCount });
+      } else {
+        result.stale.push({ ...prev, status: 'stale', missingCount });
+      }
+    }
   }
 
   return result;
@@ -345,6 +372,9 @@ export function buildUpdatedNitsRegistry(
   projectName: string
 ): NitsRegistry {
   const modules: Record<string, NitsModuleRecord> = {};
+
+  // Confirmed deletes will be handled and logged by the reporter.
+  // Duplicate console.info logs were removed to keep the output clean.
 
   const allActive = [
     ...result.confirmed,
@@ -360,11 +390,17 @@ export function buildUpdatedNitsRegistry(
     //   Cycle N+1 → Step 1 matches by new-path → confirmed as 'active'
     ...result.candidates.map(m => m.record),  // already has status: 'candidate'
     ...result.newModules,
-    ...result.stale
+    ...result.stale,
+    // result.deleted is intentionally excluded — atomic purge.
+    // Confirmed deletes must NOT be written back to the registry.
   ];
 
   for (const record of allActive) {
-    modules[record.id] = record;
+    // Strip `resolvedBy` before persistence — it is a per-cycle diagnostic
+    // field consumed only by `check --verbose`. It must never leak into
+    // registry.json (it would grow stale immediately and mislead future reads).
+    const { resolvedBy: _drop, ...persistedRecord } = record;
+    modules[record.id] = persistedRecord as NitsModuleRecord;
   }
 
   return {

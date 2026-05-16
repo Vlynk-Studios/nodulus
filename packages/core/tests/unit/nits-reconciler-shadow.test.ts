@@ -57,7 +57,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         dirPath: "/project/src/users",
         identifiers: ["NewUserCompleteRewrite"],
         hash: "new_hash",
-        shadowFile: { id: "mod_1", name: "users", createdAt: timestamp },
+        shadowFile: { version: 1, id: "mod_1", name: "users", createdAt: timestamp },
       },
     ];
 
@@ -93,7 +93,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         dirPath: "/project/src/domains/auth/users", // Path changed!
         identifiers: ["NewAuthEntity", "NewAuthRepo"], // Identifiers completely changed!
         hash: "new_hash",
-        shadowFile: { id: "mod_1", name: "users", createdAt: timestamp },
+        shadowFile: { version: 1, id: "mod_1", name: "users", createdAt: timestamp },
       },
     ];
 
@@ -117,7 +117,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         dirPath: "/project/src/orders",
         identifiers: ["Order"],
         hash: "hash",
-        shadowFile: { id: "mod_xyz12345", name: "orders", createdAt: timestamp },
+        shadowFile: { version: 1, id: "mod_xyz12345", name: "orders", createdAt: timestamp },
       },
     ];
 
@@ -148,14 +148,14 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         dirPath: "/project/src/users", // Original path
         identifiers: ["User"],
         hash: "hash1",
-        shadowFile: { id: "mod_1", name: "users", createdAt: timestamp },
+        shadowFile: { version: 1, id: "mod_1", name: "users", createdAt: timestamp },
       },
       {
         name: "users-copy",
         dirPath: "/project/src/users-copy", // Copied path
         identifiers: ["User"],
         hash: "hash1",
-        shadowFile: { id: "mod_1", name: "users", createdAt: timestamp }, // Cloned .nodulus file!
+        shadowFile: { version: 1, id: "mod_1", name: "users", createdAt: timestamp }, // Cloned .nodulus file!
       },
     ];
 
@@ -258,10 +258,10 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
       // Post-reconcile: the scanner should generate the shadow file
       const resolvedDirs = new Map([["/project/src/legacy", "legacy"]]);
       const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue("/project");
-      postReconcileEnsureShadowFiles(resultCycle1, resolvedDirs);
+      postReconcileEnsureShadowFiles(resultCycle1, resolvedDirs, ["/project/src"]);
       cwdSpy.mockRestore();
       
-      expect(ensureSpy).toHaveBeenCalledWith("/project/src/legacy", "legacy", "mod_legacy");
+      expect(ensureSpy).toHaveBeenCalledWith("/project/src/legacy", "legacy", "mod_legacy", ["/project/src"]);
 
       // CYCLE 2: The module now has a shadow file, and let's say it moves!
       const previousCycle2 = createRegistry({
@@ -274,7 +274,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
           dirPath: "/project/src/new-legacy-path", // Moved!
           identifiers: [], // Completely changed identifiers
           hash: "hash_new",
-          shadowFile: { id: "mod_legacy", name: "legacy", createdAt: timestamp }, // Now has shadow file!
+          shadowFile: { version: 1, id: "mod_legacy", name: "legacy", createdAt: timestamp }, // Now has shadow file!
         },
       ];
 
@@ -349,8 +349,8 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
       });
 
       const discovered: DiscoveredModule[] = [
-        { name: "m1", dirPath: "/project/src/new/a", identifiers: ["1"], hash: "hx", shadowFile: { id: "m1", name: "m1", createdAt: timestamp } },
-        { name: "m2", dirPath: "/project/src/new/b", identifiers: ["2"], hash: "hy", shadowFile: { id: "m2", name: "m2", createdAt: timestamp } },
+        { name: "m1", dirPath: "/project/src/new/a", identifiers: ["1"], hash: "hx", shadowFile: { version: 1, id: "m1", name: "m1", createdAt: timestamp } },
+        { name: "m2", dirPath: "/project/src/new/b", identifiers: ["2"], hash: "hy", shadowFile: { version: 1, id: "m2", name: "m2", createdAt: timestamp } },
       ];
 
       const result = await reconcile(discovered, previous, cwd);
@@ -374,7 +374,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
           identifiers: ["1"],
           hash: "h",
           // The shadow file contains outdated or mismatched name metadata
-          shadowFile: { id: "mod_target", name: "completely_wrong_name", createdAt: timestamp },
+          shadowFile: { version: 1, id: "mod_target", name: "completely_wrong_name", createdAt: timestamp },
         },
       ];
 

@@ -10,6 +10,20 @@ For full technical details, see the individual package changelogs:
 
 ---
 
+## [1.5.7] — 2026-05-16
+
+### nodulus-core
+- **NITS Delete Detection**: Implemented reliable "Move vs Delete" detection using Shadow File IDs as the source of truth. Confirmed deletes are now automatically purged from the registry.
+- **Identity Reconciliation Step 0**: Elevated Shadow File ID matching to the highest priority, allowing identity preservation even after aggressive structural changes.
+- **Security Lockdown**: Introduced Layer 1 (Registry) and Layer 2 (Shadow File) guards to prevent compilation artifacts (e.g., `dist/`) from contaminating NITS identities.
+- **Windows & Glob Support**: Improved cross-platform path normalization and added support for glob brace expansion in module root configuration.
+- **`nodulus check` Improvements**: Refined reporting for deleted modules and updated the summary metrics.
+
+### eslint-plugin-nodulus
+- Version synchronized with `nodulus-core@1.5.7`. No new rules or behavioral changes.
+
+---
+
 ## [1.5.5] — 2026-05-11
 
 ### nodulus-core

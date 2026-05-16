@@ -136,8 +136,23 @@ export function writeShadowFile(moduleDirPath: string, record: ShadowFileRecord)
 export function ensureShadowFile(
   moduleDirPath: string,
   moduleName: string,
-  existingId?: string
-): ShadowFileRecord {
+  existingId?: string,
+  modulesRoots?: string[]
+): ShadowFileRecord | null {
+  const normModuleDirPath = moduleDirPath.replace(/\\/g, '/');
+  
+  if (modulesRoots && modulesRoots.length > 0) {
+    const isWithinRoots = modulesRoots.some(root => {
+      const normRoot = root.replace(/\\/g, '/');
+      return normModuleDirPath.startsWith(normRoot);
+    });
+    
+    if (!isWithinRoots) {
+      console.warn(`[NITS] Shadow file creation blocked outside modules roots: ${moduleDirPath}`);
+      return null;
+    }
+  }
+
   const existing = readShadowFile(moduleDirPath);
   if (existing !== null) {
     return existing;

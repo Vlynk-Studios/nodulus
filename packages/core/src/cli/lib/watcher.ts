@@ -6,14 +6,16 @@ import type { WatcherOptions } from "../../types/index.js";
 // .nodulus/** is explicitly ignored to avoid re-triggering on NITS registry
 // updates that Nodulus itself generates during bootstrap.
 
-const defaultIgnored = [
+const defaultIgnored: (string | ((p: string) => boolean))[] = [
   "**/node_modules/**",
   "**/.git/**",
   "**/dist/**",
   "**/*.d.ts",
   "**/*.map",
+  "**/.nodulus",
   "**/.nodulus/**",
   "**/coverage/**",
+  (p: string) => p.includes('.nodulus')
 ];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
