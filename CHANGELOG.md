@@ -10,7 +10,7 @@ For full technical details, see the individual package changelogs:
 
 ---
 
-## [1.5.7] — 2026-05-13
+## [1.5.7] — 2026-05-16
 
 ### nodulus-core
 - **NITS Delete Detection**: Implemented reliable "Move vs Delete" detection using Shadow File IDs as the source of truth. Confirmed deletes are now automatically purged from the registry.
