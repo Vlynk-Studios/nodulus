@@ -21,7 +21,8 @@ export const DEFAULTS: ResolvedConfig = {
     enabled: true,
     similarityThreshold: undefined, // Use dynamic by default
   },
-  requirePreloader: false
+  requirePreloader: false,
+  moduleLoadTimeoutMs: 30_000
 };
 
 export const loadConfig = async (options: CreateAppOptions = {}): Promise<ResolvedConfig> => {
@@ -81,6 +82,7 @@ export const loadConfig = async (options: CreateAppOptions = {}): Promise<Resolv
       enabled: options.nits?.enabled ?? fileConfig.nits?.enabled ?? DEFAULTS.nits.enabled,
       similarityThreshold: options.nits?.similarityThreshold ?? fileConfig.nits?.similarityThreshold ?? DEFAULTS.nits.similarityThreshold,
     },
-    requirePreloader: options.requirePreloader ?? fileConfig.requirePreloader ?? DEFAULTS.requirePreloader
+    requirePreloader: options.requirePreloader ?? fileConfig.requirePreloader ?? DEFAULTS.requirePreloader,
+    moduleLoadTimeoutMs: options.moduleLoadTimeoutMs ?? fileConfig.moduleLoadTimeoutMs ?? DEFAULTS.moduleLoadTimeoutMs
   };
 };

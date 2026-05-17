@@ -226,4 +226,57 @@ describe('createApp', () => {
       expect(publicAliases['@db']).toBeDefined();
     });
   });
+
+  describe('Module Load Timeout', () => {
+    it('should throw MODULE_LOAD_TIMEOUT if top-level await in module exceeds timeout', async () => {
+      const appWithHangingModule = {
+        ...validAppStructure,
+        'src/modules/hang/index.ts': `
+          import { Module } from '{{SOURCE}}';
+          Module('hang');
+          await new Promise(() => {}); // Hangs forever
+        `
+      };
+
+      await runInTmpApp(appWithHangingModule, async (_, app) => {
+        await expect(createApp(app as any, { moduleLoadTimeoutMs: 100 })).rejects.toMatchObject({
+          code: 'MODULE_LOAD_TIMEOUT'
+        });
+      });
+    });
+
+    it('should throw MODULE_LOAD_TIMEOUT if top-level await in controller exceeds timeout', async () => {
+      const appWithHangingController = {
+        ...validAppStructure,
+        'src/modules/users/hang.controller.ts': `
+          import { Controller } from '{{SOURCE}}';
+          Controller('/hang');
+          await new Promise(() => {}); // Hangs forever
+          export default function() {}
+        `
+      };
+
+      await runInTmpApp(appWithHangingController, async (_, app) => {
+        await expect(createApp(app as any, { moduleLoadTimeoutMs: 100 })).rejects.toMatchObject({
+          code: 'MODULE_LOAD_TIMEOUT'
+        });
+      });
+    });
+
+    it('should load successfully if top-level await finishes before timeout', async () => {
+      const appWithSlowModule = {
+        'src/modules/slow/index.ts': `
+          import { Module } from '{{SOURCE}}';
+          Module('slow');
+          await new Promise(resolve => setTimeout(resolve, 50));
+        `
+      };
+
+      await runInTmpApp(appWithSlowModule, async (_, app) => {
+        const nodulusApp = await createApp(app as any, { moduleLoadTimeoutMs: 200, strict: false });
+        expect(nodulusApp.modules).toHaveLength(1);
+        expect(nodulusApp.modules[0].name).toBe('slow');
+      });
+    });
+  });
 });

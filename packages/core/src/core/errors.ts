@@ -20,6 +20,7 @@ export type NodulusErrorCode =
   | "UNUSED_IMPORT"
   | "PRELOADER_REQUIRED"
   | "PRELOADER_VERSION_MISMATCH"
+  | "MODULE_LOAD_TIMEOUT"
   // ─── NITS structured logging codes (not thrown as exceptions) ─────────────
   /**
    * Emitted via structured log when the reconciler confirms that a stale module

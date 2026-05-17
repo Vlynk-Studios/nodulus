@@ -289,7 +289,24 @@ export async function createApp(
 
   // Step 4 — Import modules
   for (const mod of resolvedModules) {
-    const imported = await import(pathToFileURL(mod.indexPath).href);
+    const importUrl = pathToFileURL(mod.indexPath).href;
+    let timer: NodeJS.Timeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new NodulusError(
+          'MODULE_LOAD_TIMEOUT',
+          `Module load timed out after ${config.moduleLoadTimeoutMs}ms. Check for unhandled promises or blocking operations in the top-level scope.`,
+          `File: ${mod.indexPath}`
+        ));
+      }, config.moduleLoadTimeoutMs);
+    });
+
+    let imported: any;
+    try {
+      imported = await Promise.race([import(importUrl), timeoutPromise]);
+    } finally {
+      clearTimeout(timer!);
+    }
 
     // Correlate the imported module with the one added to the registry based on dirPath
     const allRegistered = registry.getAllModules();
@@ -490,8 +507,25 @@ export async function createApp(
       file = path.normalize(file);
       let imported: any;
       try {
-        imported = await import(pathToFileURL(file).href);
+        const importUrl = pathToFileURL(file).href;
+        let timer: NodeJS.Timeout;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new NodulusError(
+              'MODULE_LOAD_TIMEOUT',
+              `Controller load timed out after ${config.moduleLoadTimeoutMs}ms. Check for unhandled promises or blocking operations.`,
+              `File: ${file}`
+            ));
+          }, config.moduleLoadTimeoutMs);
+        });
+
+        try {
+          imported = await Promise.race([import(importUrl), timeoutPromise]);
+        } finally {
+          clearTimeout(timer!);
+        }
       } catch (err: any) {
+        if (err instanceof NodulusError) throw err;
         throw new NodulusError(
           'INVALID_CONTROLLER',
           `Failed to import controller file. Check for syntax errors or missing dependencies.`,

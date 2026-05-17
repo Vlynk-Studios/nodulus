@@ -222,6 +222,14 @@ export interface CreateAppOptions {
    * @since v1.5.0
    */
   onShutdown?: () => void | Promise<void>;
+  /**
+   * Maximum time (in milliseconds) allowed for a module to load via dynamic import().
+   * If the module exceeds this limit, a MODULE_LOAD_TIMEOUT error is thrown.
+   * Helps prevent silent deadlocks from top-level await tasks (e.g. infinite DB connections).
+   * @default 30000 (30 seconds)
+   * @since v1.6.0
+   */
+  moduleLoadTimeoutMs?: number;
 }
 
 /** Resolved configuration used internally (defaults applied). */
@@ -241,6 +249,7 @@ export interface ResolvedConfig {
     similarityThreshold?: number;
   };
   requirePreloader: boolean;
+  moduleLoadTimeoutMs: number;
 }
 
 /** A module as it appears in the NodularApp result after bootstrap. */
