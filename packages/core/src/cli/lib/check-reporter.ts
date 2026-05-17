@@ -260,7 +260,7 @@ export function printSummary(data: CheckReportData): void {
     }
     console.log(`    ${AYU.dim}identity${R}   ${identityDisplay}`);
   } else {
-    console.log(`    ${AYU.dim}identity${R}   ${AYU.dim}—${R}`);
+    console.log(`    ${AYU.dim}identity${R}   ${AYU.dim}— disabled${R}`);
   }
   
   blank();
