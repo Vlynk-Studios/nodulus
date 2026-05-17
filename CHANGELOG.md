@@ -10,6 +10,18 @@ For full technical details, see the individual package changelogs:
 
 ---
 
+## [1.5.8] — 2026-05-17
+
+### nodulus-core
+- **`nodulus check` Redesign**: Completely overhauled the presentation layer of the static analysis command using Ayu Dark colors. Extracted logic into `check-reporter.ts` with structured sections for Architecture, Identity, Violation details, and Summary.
+- **Pre-loader warnings**: Improved warning readability via consistent Ayu Dark colors.
+- **Identity Reporting**: `--verbose` now displays a combined Architecture + Identity table with resolution methods clearly marked and an integrated legend.
+
+### eslint-plugin-nodulus
+- Version synchronized with `nodulus-core@1.5.8`. No new rules or behavioral changes.
+
+---
+
 ## [1.5.7] — 2026-05-16
 
 ### nodulus-core

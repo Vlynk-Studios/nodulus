@@ -404,10 +404,10 @@ describe("Shadow File Identity System", () => {
 
         const result = ensureShadowFile(fakeDirPath, "new_module");
 
-        expect(result.id).toMatch(/^mod_[0-9a-f]{8}$/);
-        expect(result.name).toBe("new_module");
+        expect(result!.id).toMatch(/^mod_[0-9a-f]{8}$/);
+        expect(result!.name).toBe("new_module");
         // ISO 8601 validation
-        expect(new Date(result.createdAt).toISOString()).toBe(result.createdAt);
+        expect(new Date(result!.createdAt).toISOString()).toBe(result!.createdAt);
 
         expect(fs.writeFileSync).toHaveBeenCalled();
         const writtenContent = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
@@ -421,8 +421,8 @@ describe("Shadow File Identity System", () => {
 
         const result = ensureShadowFile(fakeDirPath, "corrupted_module");
 
-        expect(result.id).toMatch(/^mod_[0-9a-f]{8}$/);
-        expect(result.name).toBe("corrupted_module");
+        expect(result!.id).toMatch(/^mod_[0-9a-f]{8}$/);
+        expect(result!.name).toBe("corrupted_module");
         expect(fs.writeFileSync).toHaveBeenCalled();
         
         // Assert it wrote the new record

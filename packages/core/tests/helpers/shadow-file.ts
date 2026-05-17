@@ -28,6 +28,7 @@ export function writeTmpShadowFile(dirPath: string, record: Partial<ShadowFileRe
     id: record.id || 'mod_00000000',
     name: record.name || 'test-module',
     createdAt: record.createdAt || new Date().toISOString(),
+    version: record.version ?? 1,
     ...record
   };
   writeShadowFile(dirPath, fullRecord);
