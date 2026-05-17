@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.8] — 2026-05-17
+
+### Added
+- **`check-reporter.ts`**: Extracted all presentation logic from `check.ts` into a dedicated `src/cli/lib/check-reporter.ts` module, implementing a fully structured Ayu Dark-themed report for `nodulus check`.
+  - **Header**: version + project name banner.
+  - **Architecture section**: per-module status with color-coded icons — `✔` OK, `⚠` warn, `✗` circular dep, `◈` new.
+  - **Architecture + Identity section** (`--verbose`): combined column view showing NITS ID and resolution method (`shadow-file`, `jaccard`, `path`, `new`) with an Identity legend.
+  - **Violation details**: violations grouped by module, with file location, suggestion, and cycle trace for circular deps.
+  - **Identity section**: aggregate summary of resolution methods (shadow-file / jaccard / new counts).
+  - **Summary**: module count, violation breakdown (warn vs error), and identity health (`all modules tracked` or `N missing .nodulus`).
+  - **Next step hints**: context-aware suggestions (`nodulus check --verbose`, `exit 0 / exit 1`).
+- **Pre-loader warnings** now emit in Ayu Dark orange directly to stdout, consistent with the rest of the check output.
+- **Unit tests** for `check-reporter.ts`: 43 tests covering 100% functions, 100% statements, 97.72% branches — above the `>= 85%` branch threshold.
+
+### Changed
+- **`check.ts`**: Removed all inline `console.log` presentation blocks. The command now collects data and delegates entirely to `printCheckReport(data)`.
+- **`check.ts`**: Removed the call to `reportReconciliation` from the check cycle — NITS reconciliation changes are now surfaced via `printCheckReport`'s Identity section. `nits-reporter.ts` contract with `createApp.ts` (bootstrap logging) is unchanged.
+
+### Fixed
+- **Colores**: Replaced all `picocolors` usages in check output with the Ayu Dark ANSI palette (`AYU` object), eliminating color inconsistencies between sections.
+- **`cli-check.test.ts`**: Added missing `deleted: []` field to `ReconciliationResult` mocks — the field became required in v1.5.7.
+- **`tests/helpers/shadow-file.ts`**: Fixed `version?: number | undefined` type error by defaulting to `version: 1` in the helper.
+- **`tests/unit/shadow-file.test.ts`**: Fixed `result is possibly null` errors with non-null assertions on `ensureShadowFile` results.
+- **`tests/unit/watcher.test.ts`**: Fixed implicit `any` type on `mockWatcher` self-referential initializer.
+
 ## [1.5.7] — 2026-05-16
 
 ### Added

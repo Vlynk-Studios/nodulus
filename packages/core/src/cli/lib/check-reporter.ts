@@ -76,6 +76,8 @@ export function printHeader(data: CheckReportData): void {
 export function printArchitectureSection(data: CheckReportData): void {
   sectionHeader('Architecture');
   
+  const maxLen = Math.min(20, Math.max(...data.modules.map(m => m.name.length), 4));
+
   for (const mod of data.modules) {
     const modViolations = data.violations.filter(v => v.module === mod.name);
     const hasCircular = modViolations.some(v => v.type === 'circular-dependency');
@@ -98,7 +100,8 @@ export function printArchitectureSection(data: CheckReportData): void {
       status = `${AYU.green}OK${R}`;
     }
 
-    const paddedName = mod.name.padEnd(14, ' ');
+    const displayName = mod.name.length > 20 ? mod.name.slice(0, 19) + '…' : mod.name;
+    const paddedName = displayName.padEnd(maxLen + 2, ' ');
     console.log(`  ${icon}  ${AYU.fg}${paddedName}${R} ${status}`);
   }
   
@@ -107,6 +110,8 @@ export function printArchitectureSection(data: CheckReportData): void {
 
 export function printArchitectureWithIdentity(data: CheckReportData): void {
   sectionHeader('Architecture + Identity');
+
+  const maxLen = Math.min(20, Math.max(...data.modules.map(m => m.name.length), 4));
 
   for (const mod of data.modules) {
     const modViolations = data.violations.filter(v => v.module === mod.name);
@@ -125,7 +130,8 @@ export function printArchitectureWithIdentity(data: CheckReportData): void {
       icon = `${AYU.green}✔${R}`;
     }
 
-    const paddedName = mod.name.padEnd(14, ' ');
+    const displayName = mod.name.length > 20 ? mod.name.slice(0, 19) + '…' : mod.name;
+    const paddedName = displayName.padEnd(maxLen + 2, ' ');
     const idStr = mod.id || 'unknown';
     const resolvedBy = isNew ? 'new' : (mod.resolvedBy || 'unknown');
     
