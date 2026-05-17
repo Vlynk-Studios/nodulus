@@ -59,6 +59,41 @@ describe('NITS Import Scanner', () => {
     expect(result[0].specifier).toBe('@modules/auth');
   });
 
+  it('extractModuleImports handles type re-exports and import types', () => {
+    const code = [
+      "import type { Bar } from '@modules/users';",
+      "export type { Foo } from '@modules/bar';",
+      "export { X } from '@modules/baz';"
+    ].join('\n');
+    const p = writeTempFile(code, '.ts');
+    tmpFiles.push(p);
+    const result = extractModuleImports(p);
+    expect(result).toHaveLength(3);
+    const specifiers = result.map(r => r.specifier);
+    expect(specifiers).toContain('@modules/users');
+    expect(specifiers).toContain('@modules/bar');
+    expect(specifiers).toContain('@modules/baz');
+  });
+
+  it('extractModuleImports handles multiline imports', () => {
+    const code = [
+      "import type {",
+      "  X,",
+      "  Y",
+      "} from '@modules/multiline';",
+      "export {",
+      "  Z",
+      "} from '@modules/multiline2';"
+    ].join('\n');
+    const p = writeTempFile(code, '.ts');
+    tmpFiles.push(p);
+    const result = extractModuleImports(p);
+    expect(result).toHaveLength(2);
+    const specifiers = result.map(r => r.specifier);
+    expect(specifiers).toContain('@modules/multiline');
+    expect(specifiers).toContain('@modules/multiline2');
+  });
+
   describe('scanBrokenImports', () => {
     it('returns empty array if no moved modules', async () => {
       const result = await scanBrokenImports([], process.cwd());

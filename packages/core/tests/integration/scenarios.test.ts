@@ -407,6 +407,32 @@ describe("Integration Tests", () => {
         },
       );
     });
+
+    it("throws UNDECLARED_IMPORT in strict mode when a module re-exports a type from another module without declaring the import", async () => {
+      await runInTmpApp(
+        {
+          "nodulus.config.js": "export default { strict: true };",
+          "src/modules/mod-a/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('mod-a', { exports: ['RealValue'] });
+          export const RealValue = 42;
+          export type TypeA = string;
+        `,
+          "src/modules/mod-b/index.ts": `
+          import { Module } from '{{SOURCE}}';
+          Module('mod-b');
+        `,
+          "src/modules/mod-b/types.ts": `
+          export type { TypeA } from '@modules/mod-a';
+        `
+        },
+        async (_, app) => {
+          await expect(createApp(app as any)).rejects.toMatchObject({
+            code: "UNDECLARED_IMPORT",
+          });
+        },
+      );
+    });
   });
 
   // -----------------------------------------------------------------------
