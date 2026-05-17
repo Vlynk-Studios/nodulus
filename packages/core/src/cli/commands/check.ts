@@ -9,7 +9,6 @@ import { printCheckReport, AYU, type CheckReportData } from '../lib/check-report
 import { loadNitsRegistry, saveNitsRegistry, initNitsRegistry, inferProjectName, scanShadowFiles } from '../../nits/nits-store.js';
 import { createLogger, defaultLogHandler } from '../../core/logger.js';
 import { reconcile, buildUpdatedNitsRegistry, buildNitsIdMap } from '../../nits/nits-reconciler.js';
-import { reportReconciliation } from '../../nits/nits-reporter.js';
 import { computeModuleHash } from '../../nits/nits-hash.js';
 import type { DiscoveredModule, NitsModuleRecord } from '../../types/nits.js';
 
@@ -143,11 +142,7 @@ export function checkCommand(): Command {
               node.resolvedBy = recordByAbsPath.get(absPath)?.resolvedBy;
             }
 
-            const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0 || result.deleted.length > 0;
-            if (hasChanges && options.format !== 'json') {
-              const logger = createLogger(defaultLogHandler, 'info', 'check');
-              reportReconciliation(result, logger);
-            }
+
           } catch (err: any) {
             const logger = createLogger(defaultLogHandler, 'warn', 'check');
             logger.warn(`NITS reconciliation failed: ${err.message}. Analysis will continue...`);
