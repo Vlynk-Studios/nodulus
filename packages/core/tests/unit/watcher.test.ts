@@ -24,7 +24,7 @@ const mockListeners: Map<EventName, EventListener[]> = new Map();
 
 const mockClose: MockInstance = vi.fn().mockResolvedValue(undefined);
 
-const mockWatcher = {
+const mockWatcher: any = {
   on: vi.fn((event: EventName, listener: EventListener) => {
     if (!mockListeners.has(event)) mockListeners.set(event, []);
     mockListeners.get(event)!.push(listener);

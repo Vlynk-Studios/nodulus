@@ -5,16 +5,17 @@ import pc from 'picocolors';
 import { loadConfig } from '../../core/config.js';
 import { buildModuleGraph } from '../lib/graph-builder.js';
 import { detectViolations, ViolationType } from '../lib/violations.js';
+import { printCheckReport, AYU, type CheckReportData } from '../lib/check-reporter.js';
 import { loadNitsRegistry, saveNitsRegistry, initNitsRegistry, inferProjectName, scanShadowFiles } from '../../nits/nits-store.js';
 import { createLogger, defaultLogHandler } from '../../core/logger.js';
 import { reconcile, buildUpdatedNitsRegistry, buildNitsIdMap } from '../../nits/nits-reconciler.js';
-import { reportReconciliation } from '../../nits/nits-reporter.js';
 import { computeModuleHash } from '../../nits/nits-hash.js';
 import type { DiscoveredModule, NitsModuleRecord } from '../../types/nits.js';
 
 function resolveCorePkgVersion(): string | null {
   const depths = [
-    '../../../package.json',
+    '../../package.json',      // dist/cli/ → packages/core/ (dev/local link)
+    '../../../package.json',   // dist/cli/ → node_modules/@vlynk-studios/nodulus-core/ (prod)
     '../../../../package.json',
   ];
   for (const depth of depths) {
@@ -51,7 +52,7 @@ export function checkCommand(): Command {
         try {
             const preloadPath = path.join(cwd, '.nodulus', 'preload.js');
             if (!fs.existsSync(preloadPath)) {
-                logger.warn('Pre-loader not detected. Run "npx nodulus sync-preload" to optimize alias resolution.');
+                console.log(`\n  ${AYU.orange}⚠  Pre-loader not detected. Run "npx nodulus sync-preload" to optimize alias resolution.\x1b[0m\n`);
             } else {
                 const content = fs.readFileSync(preloadPath, 'utf8');
                 const versionMatch = content.match(/_version:\s*'([^']+)'/);
@@ -60,12 +61,12 @@ export function checkCommand(): Command {
                     const currentVersion = resolveCorePkgVersion();
                     
                     if (currentVersion && preloadVersion !== currentVersion) {
-                        logger.warn(`Pre-loader version mismatch (found v${preloadVersion}, core is v${currentVersion}). Run "npx nodulus sync-preload" to update.`);
+                        console.log(`\n  ${AYU.orange}⚠  Pre-loader version mismatch (found v${preloadVersion}, core is v${currentVersion}). Run "npx nodulus sync-preload" to update.\x1b[0m\n`);
                     }
                 }
             }
         } catch (err: any) {
-            logger.warn(`Failed to verify pre-loader status: ${err.message}`);
+            console.log(`\n  ${AYU.orange}⚠  Failed to verify pre-loader status: ${err.message}\x1b[0m\n`);
         }
         
         const graph = await buildModuleGraph(config, cwd);
@@ -142,11 +143,7 @@ export function checkCommand(): Command {
               node.resolvedBy = recordByAbsPath.get(absPath)?.resolvedBy;
             }
 
-            const hasChanges = result.newModules.length > 0 || result.moved.length > 0 || result.stale.length > 0 || result.candidates.length > 0 || result.deleted.length > 0;
-            if (hasChanges && options.format !== 'json') {
-              const logger = createLogger(defaultLogHandler, 'info', 'check');
-              reportReconciliation(result, logger);
-            }
+
           } catch (err: any) {
             const logger = createLogger(defaultLogHandler, 'warn', 'check');
             logger.warn(`NITS reconciliation failed: ${err.message}. Analysis will continue...`);
@@ -177,80 +174,24 @@ export function checkCommand(): Command {
           return;
         }
 
-        console.log(pc.bold(pc.cyan('\nNodulus Architecture Analysis\n')));
+        const reportData: CheckReportData = {
+          version:     resolveCorePkgVersion() ?? 'unknown',
+          projectName: inferProjectName(cwd),
+          modules:     nodes,
+          violations,
+          nitsResult,
+          options: {
+            verbose:      options.verbose ?? false,
+            strict:       options.strict  ?? false,
+            moduleFilter: options.module,
+          },
+        };
 
-        for (const node of nodes) {
-          const moduleViolations = violations.filter(v => v.module === node.name);
-          
-          const hasIdentityConflict = nitsResult
-            ? nitsResult.candidates.some((c: any) => path.resolve(cwd, c.newPath) === path.resolve(node.dirPath)) ||
-              nitsResult.moved.some((m: any) => path.resolve(cwd, m.newPath) === path.resolve(node.dirPath))
-            : false;
-            
-          const showId = options.verbose || hasIdentityConflict;
-
-          // ─── Verbose identity string (─────────────────────────────────────────────
-          // Format (verbose / identity-conflict only):
-          //   [mod_105caf03 via shadow-file]
-          //   [mod_3a1f92c1 via path]
-          //   [mod_8b3f2d1a via jaccard (0.87)] — sin archivo .nodulus
-          let idStr = '';
-          if (showId && node.id) {
-            const via = node.resolvedBy ?? 'path';
-            const viaLabel = via === 'shadow-file'
-              ? pc.green('shadow-file')
-              : via === 'jaccard'
-                ? pc.yellow('jaccard')
-                : pc.cyan('path');
-            const noFileHint = via === 'jaccard' ? pc.gray(' — no .nodulus file') : '';
-            idStr = pc.gray(` [${node.id} via `) + viaLabel + pc.gray(']') + noFileHint;
-          }
-          
-          if (moduleViolations.length === 0) {
-            console.log(pc.green(`✔ ${node.name}${idStr} — OK`));
-          } else {
-            console.log(pc.red(`✗ ${node.name}${idStr} — ${moduleViolations.length} problem(s)`));
-            for (const v of moduleViolations) {
-              const prefix = pc.yellow('  WARN ');
-              
-              if (v.type === ViolationType.CIRCULAR_DEPENDENCY && v.cycle) {
-                console.log(`${prefix} ${v.message}`);
-                console.log(pc.gray(`       Suggestion: ${v.suggestion}`));
-              } else {
-                const loc = v.location ? `${v.location.file}:${v.location.line}` : 'Unknown location';
-                console.log(`${prefix} ${v.message} ${pc.gray(`(${loc})`)}`);
-                console.log(pc.gray(`       Suggestion: ${v.suggestion}`));
-              }
-            }
-          }
-        }
-
-        if (nitsResult && !options.module) {
-          for (const rec of (nitsResult.deleted || [])) {
-            const showId = options.verbose;
-            const idStr = showId ? pc.gray(` [${rec.id}]`) : '';
-            const hint = showId ? pc.gray(' (confirmed, removed from registry)') : '';
-            console.log(pc.red(`✖ ${rec.name}${idStr} — DELETED`) + hint);
-          }
-          
-          for (const rec of (nitsResult.stale || [])) {
-            const showId = options.verbose;
-            const idStr = showId ? pc.gray(` [${rec.id}]`) : '';
-            const hint = showId ? pc.gray(' (missing from disk, identity unconfirmed)') : '';
-            console.log(pc.yellow(`⚠ ${rec.name}${idStr} — STALE`) + hint);
-          }
-        }
-
-        console.log(`\n${violations.length} problem(s) found.`);
+        printCheckReport(reportData);
 
         if (nitsResult) {
-          const okCount = nitsResult.confirmed?.length || 0;
-          const movedCount = nitsResult.moved?.length || 0;
-          const deletedCount = nitsResult.deleted?.length || 0;
           const staleCount = nitsResult.stale?.length || 0;
-          const newCount = nitsResult.newModules?.length || 0;
-          console.log(`Summary: ${okCount} OK, ${movedCount} moved, ${deletedCount} deleted, ${staleCount} stale, ${newCount} new`);
-          
+          const deletedCount = nitsResult.deleted?.length || 0;
           if (staleCount > 0 || deletedCount > 0) {
             process.exitCode = 1;
           }

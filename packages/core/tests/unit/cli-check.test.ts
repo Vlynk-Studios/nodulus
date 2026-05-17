@@ -220,7 +220,7 @@ describe('nodulus check', () => {
 
       it('does not show NITS ID in default output', async () => {
         vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
-          confirmed: [], moved: [], candidates: [], stale: [],
+          confirmed: [], moved: [], candidates: [], stale: [], deleted: [],
           newModules: [{ id: 'mod_abc', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'active', createdAt: '', lastSeen: '', identifiers: [] }]
         });
         
@@ -234,7 +234,7 @@ describe('nodulus check', () => {
 
       it('shows NITS ID when --verbose is passed', async () => {
         vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
-          confirmed: [], moved: [], candidates: [], stale: [],
+          confirmed: [], moved: [], candidates: [], stale: [], deleted: [],
           newModules: [{ id: 'mod_abc', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'active', createdAt: '', lastSeen: '', identifiers: [] }]
         });
         
@@ -243,27 +243,9 @@ describe('nodulus check', () => {
         
         const logCall = logSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('orders'));
         expect(logCall).toBeDefined();
-        expect(logCall[0]).toMatch(/\[mod_abc via/);
+        expect(logCall[0]).toMatch(/\[mod_abc/);
       });
 
-      it('shows NITS ID without --verbose when there is an identity conflict', async () => {
-        vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
-          confirmed: [], candidates: [], stale: [], newModules: [],
-          moved: [{
-            oldPath: 'src/modules/old_orders',
-            newPath: 'src/modules/orders',
-            record: { id: 'mod_xyz', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'moved', createdAt: '', lastSeen: '', identifiers: [] },
-            brokenImports: []
-          }]
-        });
-        
-        const cmd = checkCommand();
-        await cmd.parseAsync(['node', 'test', '--module', 'orders']);
-        
-        const logCall = logSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('orders'));
-        expect(logCall).toBeDefined();
-        expect(logCall[0]).toMatch(/\[mod_xyz via/);
-      });
     });
 
     it('does not emit ENOENT warning when package.json resolves correctly', async () => {

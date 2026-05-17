@@ -10,8 +10,11 @@
     "baseUrl": ".",
     "paths": {
       "@middleware/*": ["./src/middleware/*"],
+      "@middleware/*.js": ["./src/middleware/*.ts"],
       "@config/*": ["./src/config/*"],
-      "@modules/*": ["./src/modules/*"]
+      "@config/*.js": ["./src/config/*.ts"],
+      "@modules/*": ["./src/modules/*"],
+      "@modules/*.js": ["./src/modules/*.ts"]
     }
   },
   "include": ["src/**/*"]
