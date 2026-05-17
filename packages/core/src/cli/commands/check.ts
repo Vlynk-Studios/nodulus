@@ -14,7 +14,8 @@ import type { DiscoveredModule, NitsModuleRecord } from '../../types/nits.js';
 
 function resolveCorePkgVersion(): string | null {
   const depths = [
-    '../../../package.json',
+    '../../package.json',      // dist/cli/ → packages/core/ (dev/local link)
+    '../../../package.json',   // dist/cli/ → node_modules/@vlynk-studios/nodulus-core/ (prod)
     '../../../../package.json',
   ];
   for (const depth of depths) {
