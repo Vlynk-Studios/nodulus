@@ -225,4 +225,23 @@ describe('createWatcher', () => {
     expect(ignored).toContain('**/*.d.ts');
     expect(ignored).toContain('**/*.map');
   });
+
+  // ── 4.9 — close() cancels pending debounce ───────────────────────────────
+
+  it('close() cancels pending debounce timer', async () => {
+    const onRestart = vi.fn();
+    const handle = createWatcher({ paths: '/src', logger, onRestart, debounceMs: 300 });
+
+    emit('change', '/src/a.ts');
+
+    // Close watcher while debounce is pending
+    await handle.close();
+
+    // Advance time beyond debounce
+    vi.advanceTimersByTime(300);
+
+    // Timer was cancelled, onRestart shouldn't be called
+    expect(onRestart).not.toHaveBeenCalled();
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
 });

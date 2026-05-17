@@ -387,17 +387,25 @@ export async function createApp(
   // Build a Map of module -> source files
   const filesByModule = new Map<string, string[]>();
   
+  // Pre-process a Map of normalizedPath -> moduleName
+  const modulePathMap = new Map<string, string>();
   for (const mod of allModules) {
     filesByModule.set(mod.name, []);
+    const rawMod = registry.getRawModule(mod.name);
+    if (rawMod) {
+      modulePathMap.set(normalizePath(rawMod.path), mod.name);
+    }
   }
+
+  // Sort paths by length descending to match the most specific (longest) path first
+  const sortedModulePaths = Array.from(modulePathMap.keys()).sort((a, b) => b.length - a.length);
   
   for (const file of allSourceFiles) {
-    // Determine which module this file belongs to
-    for (const mod of allModules) {
-      const rawMod = registry.getRawModule(mod.name);
-      if (!rawMod) continue;
-      if (file.startsWith(rawMod.path + path.sep) || file.startsWith(rawMod.path + '/')) {
-        filesByModule.get(mod.name)?.push(file);
+    // files from fast-glob already have forward slashes
+    for (const modPath of sortedModulePaths) {
+      if (file.startsWith(modPath + '/')) {
+        const modName = modulePathMap.get(modPath)!;
+        filesByModule.get(modName)?.push(file);
         break;
       }
     }
@@ -479,17 +487,17 @@ export async function createApp(
   
   for (const file of allControllerFiles) {
     const normalizedFile = normalizePath(file);
-    for (const mod of allModules) {
-      const rawMod = registry.getRawModule(mod.name);
-      if (!rawMod) continue;
-      
-      const normalizedModPath = normalizePath(rawMod.path);
-      const normalizedIndexPath = normalizePath(rawMod.indexPath);
-      
-      if (normalizedFile.startsWith(normalizedModPath + '/')) {
-        // Exclude the module's main index file
-        if (normalizedFile === normalizedIndexPath) continue;
-        controllerFilesByModule.get(mod.name)?.push(file);
+    for (const modPath of sortedModulePaths) {
+      if (normalizedFile.startsWith(modPath + '/')) {
+        const modName = modulePathMap.get(modPath)!;
+        const rawMod = registry.getRawModule(modName);
+        
+        if (rawMod && normalizedFile === normalizePath(rawMod.indexPath)) {
+          // Exclude the module's main index file
+          break;
+        }
+        
+        controllerFilesByModule.get(modName)?.push(file);
         break;
       }
     }

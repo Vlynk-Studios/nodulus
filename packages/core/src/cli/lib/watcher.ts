@@ -140,6 +140,9 @@ export function createWatcher(options: WatcherOptions): {
   // the watcher and cancel any pending debounce before the process exits.
 
   return {
-    close: () => watcher.close(),
+    close: async () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      await watcher.close();
+    },
   };
 }
