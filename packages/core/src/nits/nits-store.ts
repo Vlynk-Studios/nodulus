@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NITS_REGISTRY_VERSION } from './constants.js';
 import { isValidModuleId } from './nits-id.js';
-import { readShadowFile, ensureShadowFile } from './shadow-file.js';
+import { ensureShadowFile, readShadowFile } from './shadow-file.js';
 
 import type { NitsRegistry } from '../types/nits.js';
 import type { ShadowFileRecord } from './shadow-file.types.js';
@@ -54,25 +54,25 @@ export async function loadNitsRegistry(cwd: string): Promise<NitsRegistry | null
     
     // Schema Validation
     if (!isValidRegistry(data)) {
-      console.warn(`[Nodulus] Warning: NITS registry at "${fullPath}" has an invalid structure. Ignoring.`);
+      console.warn(`[System] Warning: NITS registry at "${fullPath}" has an invalid structure. Ignoring.`);
       return null;
     }
 
     if (data.version !== NITS_REGISTRY_VERSION) {
-      console.warn(`[Nodulus] Warning: NITS registry version mismatch (found ${data.version}, expected ${NITS_REGISTRY_VERSION}).`);
+      console.warn(`[System] Warning: NITS registry version mismatch (found ${data.version}, expected ${NITS_REGISTRY_VERSION}).`);
     }
 
     // Deep validation of module IDs
     for (const id of Object.keys(data.modules)) {
       if (!isValidModuleId(id)) {
-        console.warn(`[Nodulus] Warning: Corrupt NITS ID found in registry: ${id}. Registry considered invalid.`);
+        console.warn(`[System] Warning: Corrupt NITS ID found in registry: ${id}. Registry considered invalid.`);
         return null;
       }
     }
     
     return data as NitsRegistry;
   } catch (err: any) {
-    console.warn(`[Nodulus] Warning: Failed to load NITS registry at "${fullPath}": ${err.message}`);
+    console.warn(`[System] Warning: Failed to load NITS registry at "${fullPath}": ${err.message}`);
     return null;
   }
 }
@@ -105,7 +105,7 @@ function isValidRegistry(data: any): data is NitsRegistry {
 
     if (missing.length > 0) {
       console.warn(
-        `[Nodulus] Warning: Module record "${id}" is missing required fields: ${missing.join(', ')}. Registry considered invalid.`
+        `[System] Warning: Module record "${id}" is missing required fields: ${missing.join(', ')}. Registry considered invalid.`
       );
       return false;
     }
@@ -154,22 +154,28 @@ export async function saveNitsRegistry(registry: NitsRegistry, cwd: string): Pro
   await fs.promises.rename(tempPath, fullPath);
 }
 
-// ─── Shadow File Scanner ───────────────────────────────────────────────────────
-
 /**
- * READ-ONLY scanner — reads existing `.nodulus` shadow files without creating new ones.
+ * Shadow file scanner — idempotent, never throws.
  *
- * Called during Step 2.5 of the bootstrap pipeline, BEFORE NITS reconciliation.
- * Only modules that already have a valid shadow file (v1.5.5+) get their
- * `DiscoveredModule.shadowFile` populated. Legacy modules arrive with `undefined`
- * and fall through to the path/Jaccard steps — preserving their history.
+ * For each discovered module directory:
+ *  - If a valid `.nodulus` file already exists → reads and returns it (no-op).
+ *  - If missing or corrupted → creates a new one with a fresh `mod_{hex}` ID.
  *
- * Shadow files for newly-resolved modules are written AFTER reconcile() via
- * `postReconcileEnsureShadowFiles()` so identity is established before the
- * next boot cycle.
+ * Called during Step 2.5 of the bootstrap pipeline, BEFORE NITS reconciliation,
+ * so every module enters the reconciler with a stable shadow identity.
+ *
+ * **Edge case — write permission denied:** `ensureShadowFile` swallows the error
+ * and returns the in-memory record regardless. The scanner stores `undefined` for
+ * that module so the reconciler falls through to Jaccard. Bootstrap continues.
+ *
+ * **Edge case — FS race condition (Chokidar `unlinkDir` during scan):** If the
+ * directory disappears between discovery and this call (e.g. the user deletes it
+ * while the scanner runs), `ensureShadowFile` can throw an `ENOENT`. The
+ * try/catch below catches it and excludes the module, treating it as if
+ * `shadowFile` were `undefined`. The reconciler will route it to `stale`.
  *
  * @param moduleDirs - Array of {name, dirPath} for each discovered module.
- * @returns Map of `dirPath → ShadowFileRecord` for modules that have a valid file.
+ * @returns Map of `dirPath → ShadowFileRecord` for modules with a valid identity.
  */
 export function scanShadowFiles(
   moduleDirs: { name: string; dirPath: string }[]
@@ -177,10 +183,19 @@ export function scanShadowFiles(
   const result = new Map<string, ShadowFileRecord>();
 
   for (const { dirPath } of moduleDirs) {
-    // READ ONLY — never creates. Legacy modules return null and are excluded.
-    const record = readShadowFile(dirPath);
-    if (record !== null) {
-      result.set(dirPath, record);
+    try {
+      const record = readShadowFile(dirPath);
+      if (record) {
+        result.set(dirPath, record);
+      }
+    } catch (err: unknown) {
+      // ENOENT or any unexpected error: directory vanished during scan
+      // (FS race condition). Exclude this module — it will surface as `stale`
+      // in the reconciler and eventually as `deleted` if its shadow ID is gone.
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[NITS] Shadow file scan skipped for "${dirPath}": ${msg}. Module will be treated as legacy this cycle.`
+      );
     }
   }
 
@@ -200,7 +215,8 @@ export function scanShadowFiles(
  */
 export function postReconcileEnsureShadowFiles(
   result: ReconciliationResult,
-  resolvedDirs: Map<string, string>
+  resolvedDirs: Map<string, string>,
+  modulesRoots: string[]
 ): void {
   // Only act on modules resolved by path or Jaccard — shadow-file resolved
   // modules already have their file; new modules will get one on the next step.
@@ -217,7 +233,7 @@ export function postReconcileEnsureShadowFiles(
       const relPath = path.relative(process.cwd(), dirPath).replace(/\\/g, '/');
       if (relPath === record.path || dirPath === record.path) {
         // ensureShadowFile is idempotent: skips if file already valid.
-        ensureShadowFile(dirPath, name, record.id);
+        ensureShadowFile(dirPath, name, record.id, modulesRoots);
         break;
       }
     }

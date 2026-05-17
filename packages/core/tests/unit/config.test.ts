@@ -80,7 +80,7 @@ describe('loadConfig', () => {
     await runInTmpDir({
       'nodulus.config.js': 'module.exports = { prefix: "/fail", invalid-syntax here };'
     }, async () => {
-      await expect(loadConfig()).rejects.toThrowError(/\[Nodulus\] Failed to parse or evaluate config file at/);
+      await expect(loadConfig()).rejects.toThrowError(/\[System\] Failed to parse or evaluate config file at/);
     });
   });
 });

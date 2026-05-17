@@ -35,7 +35,7 @@ describe('Logger Utility', () => {
       expect(logOutput).toHaveProperty('level', 30); // info
       expect(logOutput).toHaveProperty('module', 'test');
       expect(logOutput).toHaveProperty('msg', 'Hello world');
-      expect(logOutput).toHaveProperty('service', 'nodulus');
+      expect(logOutput).toHaveProperty('service', 'system');
     });
 
     it('respeta minLevel (mensajes por debajo del nivel no se emiten)', () => {

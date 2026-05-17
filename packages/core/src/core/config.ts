@@ -51,13 +51,13 @@ export const loadConfig = async (options: CreateAppOptions = {}): Promise<Resolv
     } catch (error: any) {
       if (configPathToLoad.endsWith('.ts') && error.code === 'ERR_UNKNOWN_FILE_EXTENSION') {
         throw new Error(
-          `[Nodulus] Found "nodulus.config.ts" but your environment cannot load raw TypeScript files.\n` +
+          `[System] Found "nodulus.config.ts" but your environment cannot load raw TypeScript files.\n` +
           `  - In production: Run "npm run build" to generate a .js config OR use nodulus.config.js.\n` +
           `  - In development: Ensure you are running with a loader like "tsx" or "ts-node".`,
           { cause: error }
         );
       }
-      throw new Error(`[Nodulus] Failed to parse or evaluate config file at ${configPathToLoad}: ${error.message}`, { cause: error });
+      throw new Error(`[System] Failed to parse or evaluate config file at ${configPathToLoad}: ${error.message}`, { cause: error });
     }
   }
 

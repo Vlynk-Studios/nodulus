@@ -72,7 +72,7 @@ function extractIdentifierCall(
                     }
                   }
                   if (hasNonLiteral) {
-                    console.warn(`[Nodulus] Warning: Found non-literal element (spread, variable, or expression) in "${keyName}" array at ${filePath}. These won't be statically analyzable.`);
+                    console.warn(`[System] Warning: Found non-literal element (spread, variable, or expression) in "${keyName}" array at ${filePath}. These won't be statically analyzable.`);
                   }
                   options[keyName] = arr;
                 } else if (keyName && prop.value.type === "Literal") {

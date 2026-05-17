@@ -19,7 +19,15 @@ export type NodulusErrorCode =
   | "CLI_ERROR"
   | "UNUSED_IMPORT"
   | "PRELOADER_REQUIRED"
-  | "PRELOADER_VERSION_MISMATCH";
+  | "PRELOADER_VERSION_MISMATCH"
+  // ─── NITS structured logging codes (not thrown as exceptions) ─────────────
+  /**
+   * Emitted via structured log when the reconciler confirms that a stale module
+   * is a real deletion (its shadow ID is absent from all discovered modules in
+   * the current cycle). Used for observability only — never passed to `new NodulusError()`.
+   * @since v1.5.5
+   */
+  | "NITS_DELETE_CONFIRMED";
 
 export class NodulusError extends Error {
   readonly code: NodulusErrorCode;

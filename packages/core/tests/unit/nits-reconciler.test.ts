@@ -671,6 +671,7 @@ describe("buildUpdatedNitsRegistry()", () => {
       ],
       newModules: [makeRecord("mod_n", "new")],
       stale: [makeRecord("mod_s", "gone", "stale")],
+      deleted: [],
     };
 
     const registry = buildUpdatedNitsRegistry(result as any, "my-project");
@@ -704,6 +705,7 @@ describe("buildUpdatedNitsRegistry()", () => {
       candidates: [{ record: candidateRecord, oldPath: "src/old-payments", newPath: "src/new-payments", brokenImports: [] }],
       newModules: [],
       stale: [],
+      deleted: [],
     };
 
     // Registry: must preserve 'candidate' status (not downgrade to 'stale')
