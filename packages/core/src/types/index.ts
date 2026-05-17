@@ -289,6 +289,11 @@ export interface NodulusRegistryAdvanced extends NodulusRegistry {
   findCircularDependencies(): string[][];
 }
 
+export interface ShutdownHook {
+  (): Promise<void>;
+  unregister: () => void;
+}
+
 /** Value returned by createApp() after a successful bootstrap. */
 export interface NodulusApp {
   modules: RegisteredModule[];
@@ -336,7 +341,7 @@ export interface NodulusApp {
    * ```
    * @since v1.5.1
    */
-  listen(server: import('node:http').Server): () => Promise<void>;
+  listen(server: import('node:http').Server): ShutdownHook;
 }
 
 /** Shape of nodulus.config.ts. Options passed directly to createApp() take priority. */

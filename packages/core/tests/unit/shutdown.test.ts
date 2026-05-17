@@ -126,4 +126,26 @@ describe('Shutdown Manager', () => {
     
     expect(exitSpy).toHaveBeenCalledWith(0);
   });
+
+  describe('Listener cleanup', () => {
+    it('should allow multiple registerShutdown calls and unregister to reduce the listener count', () => {
+      // Restore original process.on for this test so we can check real listenerCount
+      onSpy.mockRestore();
+
+      const initialSigint = process.listenerCount('SIGINT');
+
+      const hook1 = registerShutdown({ logger: mockLogger });
+      const hook2 = registerShutdown({ logger: mockLogger });
+      const hook3 = registerShutdown({ logger: mockLogger });
+
+      expect(process.listenerCount('SIGINT')).toBe(initialSigint + 3);
+
+      hook1.unregister();
+      expect(process.listenerCount('SIGINT')).toBe(initialSigint + 2);
+
+      hook2.unregister();
+      hook3.unregister();
+      expect(process.listenerCount('SIGINT')).toBe(initialSigint);
+    });
+  });
 });
