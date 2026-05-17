@@ -129,7 +129,7 @@ async function runCycle(
     discovered.push({ name, dirPath, identifiers, hash, shadowFile: shadowMap.get(dirPath) });
   }
 
-  const result   = await reconcile(discovered, previous, cwd);
+  const result   = reconcile(discovered, previous, cwd);
   const registry = buildUpdatedNitsRegistry(result, 'test');
   writeRegistry(cwd, registry);
   return { result, registry };

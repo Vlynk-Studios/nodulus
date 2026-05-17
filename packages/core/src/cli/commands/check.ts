@@ -110,7 +110,7 @@ export function checkCommand(): Command {
               }
             }
 
-            const result = await reconcile(discovered, oldRegistry, cwd, {
+            const result = reconcile(discovered, oldRegistry, cwd, {
               similarityThreshold: config.nits.similarityThreshold
             });
             nitsResult = result;
@@ -145,7 +145,6 @@ export function checkCommand(): Command {
 
 
           } catch (err: any) {
-            const logger = createLogger(defaultLogHandler, 'warn', 'check');
             logger.warn(`NITS reconciliation failed: ${err.message}. Analysis will continue...`);
           }
         }

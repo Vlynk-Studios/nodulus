@@ -195,7 +195,7 @@ export async function createApp(
         }
       }
 
-      const nitsResult = await reconcile(discovered, oldRegistry, cwd, {
+      const nitsResult = reconcile(discovered, oldRegistry, cwd, {
         similarityThreshold: config.nits?.similarityThreshold
       });
       

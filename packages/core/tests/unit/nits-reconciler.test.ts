@@ -50,7 +50,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
       },
     ];
 
-    const result = await reconcile(discovered, null, cwd);
+    const result = reconcile(discovered, null, cwd);
 
     expect(result.newModules.length).toBe(2);
     expect(result.newModules[0].id).toMatch(/^mod_[0-9a-f]{8}$/);
@@ -84,7 +84,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
       },
     ];
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     expect(result.confirmed.length).toBe(1);
     expect(result.confirmed[0].id).toBe("mod_1");
@@ -119,7 +119,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
 
     vi.mocked(nitsHash.hashSimilarity).mockReturnValue(1.0);
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     expect(result.moved.length).toBe(1);
     expect(result.moved[0].record.id).toBe("mod_1");
@@ -144,7 +144,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
       },
     };
 
-    const result = await reconcile([], previous, cwd);
+    const result = reconcile([], previous, cwd);
 
     expect(result.stale.length).toBe(1);
     expect(result.stale[0].id).toBe("mod_gone");
@@ -187,7 +187,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
     
     // We explicitly set clonePolicy: 'new' to ensure this test passes even in CI
     // where the default would be 'error'.
-    const result = await reconcile(discovered, previous, cwd, { clonePolicy: 'new' });
+    const result = reconcile(discovered, previous, cwd, { clonePolicy: 'new' });
 
     expect(result.confirmed.length).toBe(1);
     expect(result.confirmed[0].id).toBe("mod_orig");
@@ -223,7 +223,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
       },
     ];
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     expect(result.confirmed.length).toBe(1);
     expect(result.confirmed[0].id).toBe("mod_1");
@@ -268,7 +268,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
 
     vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.95);
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     expect(result.moved.length).toBe(0);
     expect(result.newModules.length).toBe(1);
@@ -304,7 +304,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
     // No hash similarity → Step 2 skipped
     vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.1);
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     // Step 3 should match by name on the stale record
     expect(result.candidates.length).toBe(1);
@@ -346,7 +346,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
     // Very low similarity → Step 2 skipped
     vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.05);
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     // Step 3 must NOT produce a candidate — the 'active' record is not eligible
     expect(result.candidates.length).toBe(0);
@@ -397,9 +397,9 @@ describe("NITS Reconciler (Verification Triangle)", () => {
         }, // Clone
       ];
 
-      await expect(
+      expect(() =>
         reconcile(discovered, previous, "/project", { isCi: true }),
-      ).rejects.toThrow(/Duplicate module content detected/i);
+      ).toThrow(/Duplicate module content detected/i);
     });
 
     it('Test: identical hash + original in its path + dev policy "new" → newModules with distinct ID', async () => {
@@ -436,7 +436,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
         }, // Clone
       ];
 
-      const result = await reconcile(discovered, previous, "/project", {
+      const result = reconcile(discovered, previous, "/project", {
         clonePolicy: "new",
         isCi: false,
       });
@@ -484,9 +484,9 @@ describe("NITS Reconciler (Verification Triangle)", () => {
         },
       ];
 
-      await expect(
+      expect(() =>
         reconcile(discovered, previous, "/project", { clonePolicy: "error" }),
-      ).rejects.toThrow(/Duplicate module content detected/i);
+      ).toThrow(/Duplicate module content detected/i);
     });
 
     it("Test: empty modules (no identifiers) do not collide even if hashes match (N-38)", async () => {
@@ -505,7 +505,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
         },
       ];
 
-      const result = await reconcile(discovered, null, "/project", { clonePolicy: 'error' });
+      const result = reconcile(discovered, null, "/project", { clonePolicy: 'error' });
 
       // Should have 2 new modules, no error even if hashes match
       expect(result.newModules.length).toBe(2);
@@ -548,9 +548,9 @@ describe("NITS Reconciler (Verification Triangle)", () => {
       vi.mocked(nitsHash.hashSimilarity).mockReturnValue(1.0);
 
       // In Step 2, mod1 moves to /src/new. This should immediately block /src/clone.
-      await expect(
+      expect(() =>
         reconcile(discovered, previous, "/project", { clonePolicy: "error" })
-      ).rejects.toThrow(/Duplicate module content detected/i);
+      ).toThrow(/Duplicate module content detected/i);
     });
   });
 
@@ -587,7 +587,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
         },
       ];
 
-      const result = await reconcile(discovered, previous, "/project");
+      const result = reconcile(discovered, previous, "/project");
 
       expect(result.confirmed.length).toBe(1);
       expect(result.confirmed[0].id).toBe("mod_1");
@@ -626,7 +626,7 @@ describe("NITS Reconciler (Verification Triangle)", () => {
       ];
 
       // We expect it to be confirmed because src\users should normalize to src/users
-      const result = await reconcile(discovered, previous, "/project");
+      const result = reconcile(discovered, previous, "/project");
 
       expect(result.confirmed.length).toBe(1);
       expect(result.confirmed[0].id).toBe("mod_1");

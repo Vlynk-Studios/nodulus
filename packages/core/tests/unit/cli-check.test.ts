@@ -219,7 +219,7 @@ describe('nodulus check', () => {
       });
 
       it('does not show NITS ID in default output', async () => {
-        vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
+        vi.spyOn(nitsReconciler, 'reconcile').mockReturnValue({
           confirmed: [], moved: [], candidates: [], stale: [], deleted: [],
           newModules: [{ id: 'mod_abc', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'active', createdAt: '', lastSeen: '', identifiers: [] }]
         });
@@ -233,7 +233,7 @@ describe('nodulus check', () => {
       });
 
       it('shows NITS ID when --verbose is passed', async () => {
-        vi.spyOn(nitsReconciler, 'reconcile').mockResolvedValue({
+        vi.spyOn(nitsReconciler, 'reconcile').mockReturnValue({
           confirmed: [], moved: [], candidates: [], stale: [], deleted: [],
           newModules: [{ id: 'mod_abc', name: 'orders', path: 'src/modules/orders', hash: 'abc', status: 'active', createdAt: '', lastSeen: '', identifiers: [] }]
         });
@@ -244,6 +244,18 @@ describe('nodulus check', () => {
         const logCall = logSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('orders'));
         expect(logCall).toBeDefined();
         expect(logCall[0]).toMatch(/\[mod_abc/);
+      });
+
+      it('logs a warning using the main logger if NITS reconciliation throws an error', async () => {
+        vi.spyOn(nitsReconciler, 'reconcile').mockImplementation(() => {
+          throw new Error('Simulated NITS crash');
+        });
+        const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+        const cmd = checkCommand();
+        await cmd.parseAsync(['node', 'test', '--module', 'orders']);
+        
+        const logCall = writeSpy.mock.calls.find((call: any[]) => typeof call[0] === 'string' && call[0].includes('Simulated NITS crash'));
+        expect(logCall).toBeDefined();
       });
 
     });

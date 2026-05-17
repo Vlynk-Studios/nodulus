@@ -119,7 +119,7 @@ describe("NITS Reconciler — Step 0: Shadow File ID Resolution", () => {
 
     const discovered = [makeDisc("auth", `${CWD}/src/auth`, "mod_aabbccdd")];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.confirmed).toHaveLength(1);
     expect(result.confirmed[0].id).toBe("mod_aabbccdd");
@@ -135,7 +135,7 @@ describe("NITS Reconciler — Step 0: Shadow File ID Resolution", () => {
 
     const discovered = [makeDisc("orders-v2", `${CWD}/src/billing/orders`, "mod_11223344")];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.moved).toHaveLength(1);
     const move = result.moved[0];
@@ -152,7 +152,7 @@ describe("NITS Reconciler — Step 0: Shadow File ID Resolution", () => {
 
     const discovered = [makeDisc("fresh", `${CWD}/src/fresh`, "mod_deadbeef")];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.newModules).toHaveLength(1);
     expect(result.newModules[0].id).toBe("mod_deadbeef");
@@ -168,7 +168,7 @@ describe("NITS Reconciler — Step 0: Shadow File ID Resolution", () => {
     // No shadow file on discovered → must use path match (Step 1)
     const discovered = [makeDisc("users", `${CWD}/src/users`, undefined)];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.confirmed).toHaveLength(1);
     expect(result.confirmed[0].id).toBe("mod_aabbccdd");
@@ -188,7 +188,7 @@ describe("NITS Reconciler — Step 0: Shadow File ID Resolution", () => {
     // Verify the resolution method is 'shadow-file'.
     const discovered = [makeDisc("payments", `${CWD}/src/payments`, "mod_aabbccdd")];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     // Should be confirmed — either via Step 0 (id match) or Step 1 (path match)
     expect(result.confirmed).toHaveLength(1);
@@ -209,7 +209,7 @@ describe("NITS Reconciler — Step 0: Shadow File ID Resolution", () => {
       makeDisc("catalog-v2", `${CWD}/src/new/catalog-v2`, "mod_cafebabe"),
     ];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.moved).toHaveLength(1);
     expect(result.moved[0].record.id).toBe("mod_cafebabe");
@@ -230,7 +230,7 @@ describe("NITS Reconciler — Confirmed Delete Detection", () => {
     });
 
     // Empty discovered — module is gone for the 3rd time
-    const result = await reconcile([], previous, CWD);
+    const result = reconcile([], previous, CWD);
 
     expect(result.deleted).toHaveLength(1);
     expect(result.deleted[0].id).toBe("mod_11223344");
@@ -244,7 +244,7 @@ describe("NITS Reconciler — Confirmed Delete Detection", () => {
     });
 
     // Empty discovered
-    const result = await reconcile([], previous, CWD);
+    const result = reconcile([], previous, CWD);
 
     expect(result.deleted).toHaveLength(0);
     expect(result.stale).toHaveLength(1);
@@ -256,7 +256,7 @@ describe("NITS Reconciler — Confirmed Delete Detection", () => {
       mod_legacy: makeLegacyRecord("mod_legacy", "legacy", "src/legacy"),
     });
 
-    const result = await reconcile([], previous, CWD);
+    const result = reconcile([], previous, CWD);
 
     expect(result.stale).toHaveLength(1);
     expect(result.stale[0].id).toBe("mod_legacy");
@@ -270,7 +270,7 @@ describe("NITS Reconciler — Confirmed Delete Detection", () => {
       mod_legacy:  makeLegacyRecord("mod_legacy",   "legacy",  "src/legacy"),
     });
 
-    const result = await reconcile([], previous, CWD);
+    const result = reconcile([], previous, CWD);
 
     expect(result.deleted).toHaveLength(0);
     expect(result.stale).toHaveLength(2);
@@ -291,7 +291,7 @@ describe("NITS Reconciler — Confirmed Delete Detection", () => {
       makeDisc("b", `${CWD}/src/new/b`, "mod_ccccdddd"),
     ];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.moved).toHaveLength(2);
     expect(result.stale).toHaveLength(0);
@@ -418,7 +418,7 @@ describe("NITS Reconciler — Clonación de Shadow File", () => {
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     // Original stays confirmed with same ID
     expect(result.confirmed).toHaveLength(1);
@@ -446,7 +446,7 @@ describe("NITS Reconciler — Clonación de Shadow File", () => {
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await reconcile(discovered, previous, CWD);
+    reconcile(discovered, previous, CWD);
 
     const cloneWarnings = warnSpy.mock.calls.filter(
       ([msg]) => typeof msg === "string" && msg.includes("Duplicate module identity detected")
@@ -473,7 +473,7 @@ describe("NITS Reconciler — Clonación de Shadow File", () => {
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     // Both end up as new modules — none can claim the original ID
     expect(result.newModules).toHaveLength(2);
@@ -517,7 +517,7 @@ describe("NITS Reconciler — Backward Compatibility", () => {
       makeDisc("b", `${CWD}/src/b`),
     ];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.confirmed).toHaveLength(2);
     expect(result.confirmed[0].resolvedBy).toBe("path");
@@ -539,7 +539,7 @@ describe("NITS Reconciler — Backward Compatibility", () => {
       { name: "a", dirPath: `${CWD}/src/a`, identifiers: [], hash: "h", shadowFile: undefined },
     ];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.confirmed).toHaveLength(1);   // Step 1 path match
     expect(result.deleted).toHaveLength(0);
@@ -568,9 +568,9 @@ describe("NITS Reconciler — Edge Cases", () => {
     ];
 
     // Must not throw — module falls to Step 1
-    await expect(reconcile(discovered, previous, CWD)).resolves.toBeDefined();
+    expect(() => reconcile(discovered, previous, CWD)).not.toThrow();
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
     expect(result.confirmed).toHaveLength(1);
     expect(result.confirmed[0].resolvedBy).toBe("path");
   });
@@ -587,7 +587,7 @@ describe("NITS Reconciler — Edge Cases", () => {
 
     const discovered = [makeDisc("broken", `${CWD}/src/broken`, undefined)];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     // Should be confirmed by path (Step 1)
     expect(result.confirmed).toHaveLength(1);
@@ -604,7 +604,7 @@ describe("NITS Reconciler — Edge Cases", () => {
 
     const discovered = [makeDisc("new-mod", `${CWD}/src/new-mod`, "mod_12345678")];
 
-    const result = await reconcile(discovered, previous, CWD);
+    const result = reconcile(discovered, previous, CWD);
 
     expect(result.newModules).toHaveLength(1);
     expect(result.newModules[0].shadowFileId).toBe("mod_12345678");

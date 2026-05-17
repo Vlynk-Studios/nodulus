@@ -65,7 +65,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
     // but Step 0 shadow-file matching guarantees identity.
     vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.0);
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     expect(result.confirmed.length).toBe(1);
     expect(result.confirmed[0].id).toBe("mod_1");
@@ -97,7 +97,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
       },
     ];
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     expect(result.moved.length).toBe(1);
     expect(result.moved[0].record.id).toBe("mod_1");
@@ -121,7 +121,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
       },
     ];
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     expect(result.newModules.length).toBe(1);
     expect(result.newModules[0].id).toBe("mod_xyz12345"); // Kept its own ID
@@ -161,7 +161,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     // Original keeps ID
     expect(result.confirmed.length).toBe(1);
@@ -211,7 +211,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
     // Setup jaccard mock to return high similarity
     vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.95);
 
-    const result = await reconcile(discovered, previous, cwd);
+    const result = reconcile(discovered, previous, cwd);
 
     expect(result.moved.length).toBe(1);
     expect(result.moved[0].record.id).toBe("mod_2");
@@ -249,7 +249,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         },
       ];
 
-      const resultCycle1 = await reconcile(discoveredCycle1, previousCycle1, cwd);
+      const resultCycle1 = reconcile(discoveredCycle1, previousCycle1, cwd);
       
       // Legacy module is confirmed via path (resolvedBy: 'path')
       expect(resultCycle1.confirmed.length).toBe(1);
@@ -281,7 +281,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
       // Jaccard similarity is 0, path changed -> normally it would fail and be a newModule
       vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.0);
 
-      const resultCycle2 = await reconcile(discoveredCycle2, previousCycle2, cwd);
+      const resultCycle2 = reconcile(discoveredCycle2, previousCycle2, cwd);
 
       // Successfully resolved via shadow file!
       expect(resultCycle2.moved.length).toBe(1);
@@ -306,7 +306,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         { name: "b", dirPath: "/project/src/b", identifiers: ["B"], hash: "h2", shadowFile: undefined },
       ];
 
-      const result = await reconcile(discovered, previous, cwd);
+      const result = reconcile(discovered, previous, cwd);
 
       expect(result.confirmed.length).toBe(2);
       expect(result.confirmed[0].resolvedBy).toBe("path");
@@ -334,7 +334,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
 
       vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0.99);
 
-      const result = await reconcile(discovered, previous, cwd);
+      const result = reconcile(discovered, previous, cwd);
 
       // Falls through to Jaccard and moves successfully
       expect(result.moved.length).toBe(1);
@@ -353,7 +353,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         { name: "m2", dirPath: "/project/src/new/b", identifiers: ["2"], hash: "hy", shadowFile: { version: 1, id: "m2", name: "m2", createdAt: timestamp } },
       ];
 
-      const result = await reconcile(discovered, previous, cwd);
+      const result = reconcile(discovered, previous, cwd);
 
       expect(result.moved.length).toBe(2);
       expect(result.moved[0].record.resolvedBy).toBe("shadow-file");
@@ -378,7 +378,7 @@ describe("NITS Reconciler - Step 0 (Shadow File Identity)", () => {
         },
       ];
 
-      const result = await reconcile(discovered, previous, cwd);
+      const result = reconcile(discovered, previous, cwd);
 
       // Should be matched correctly by ID
       expect(result.moved.length).toBe(1);

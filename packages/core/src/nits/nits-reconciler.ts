@@ -47,12 +47,12 @@ import type {
  * update the test "Step 3 does NOT rescue an 'active' module that failed Steps 1&2"
  * in nits-reconciler.test.ts as the canonical contract guard.
  */
-export async function reconcile(
+export function reconcile(
   discovered: DiscoveredModule[],
   previous: NitsRegistry | null,
   cwd: string = process.cwd(),
   options: ReconcileOptions = {}
-): Promise<ReconciliationResult> {
+): ReconciliationResult {
   const result: ReconciliationResult = {
     confirmed: [],
     moved: [],
