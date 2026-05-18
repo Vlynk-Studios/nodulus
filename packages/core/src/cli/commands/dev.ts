@@ -196,7 +196,7 @@ export function devCommand(): Command {
                             child.kill();
                             resolve();
                         }, 5000);
-                        child.once('exit', () => {
+                        child.once('close', () => {
                             clearTimeout(timeout);
                             resolve();
                         });
@@ -224,7 +224,7 @@ export function devCommand(): Command {
                 
                 await new Promise<void>(resolve => {
                     const timeout = setTimeout(() => resolve(), 3000);
-                    child.once('exit', () => {
+                    child.once('close', () => {
                         clearTimeout(timeout);
                         resolve();
                     });

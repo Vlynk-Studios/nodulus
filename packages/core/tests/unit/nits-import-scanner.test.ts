@@ -287,3 +287,142 @@ describe('NITS Import Scanner', () => {
     });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §1.3 [BLOCKER]: extractModuleImports — dynamic imports must not crash
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Context: import-scanner.ts uses a regex-based extractor for .ts files.
+// The regex `/(?:import|export)\s+(?:[^"';]+\s+from\s+)?["']([^"';]+)["']/g`
+// could potentially match the specifier inside `import('./algo')` producing
+// `./algo` as a capture group. Since `./algo` does not start with '@' it is
+// filtered out, so dynamic imports are silently ignored.
+//
+// This describe block is the canonical contract:
+// "extractModuleImports MUST NOT throw when dynamic imports are present AND
+//  MUST still return the static @-prefixed imports from the same file."
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('§1.3 [BLOCKER]: extractModuleImports — dynamic import resilience', () => {
+  const tmpFiles: string[] = [];
+
+  afterEach(() => {
+    for (const p of tmpFiles) {
+      try { fs.unlinkSync(p); } catch { /* ignore */ }
+    }
+    tmpFiles.length = 0;
+  });
+
+  function tmp(content: string, ext = '.ts'): string {
+    const p = path.join(os.tmpdir(), `nodulus-dyn-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    fs.writeFileSync(p, content, 'utf-8');
+    tmpFiles.push(p);
+    return p;
+  }
+
+  it('[BLOCKER] §1.3-1: static + dynamic import() in .ts file — does not throw, returns static import', () => {
+    // This is the primary BLOCKER scenario.
+    // A .ts file has both a static @modules import AND a dynamic import('./algo').
+    // extractModuleImports must:
+    //   (a) NOT throw (the regex must not be confused by the import() expression)
+    //   (b) Return the static @modules/users import
+    //   (c) NOT include ./algo in the result (relative paths are filtered)
+    const code = [
+      "import { UserService } from '@modules/users';",
+      "const chunk = import('./algo');",
+    ].join('\n');
+
+    const file = tmp(code);
+    let result: ReturnType<typeof extractModuleImports>;
+
+    expect(() => { result = extractModuleImports(file); }).not.toThrow();
+
+    // Static @modules import must be captured
+    const specifiers = result!.map(r => r.specifier);
+    expect(specifiers).toContain('@modules/users');
+
+    // Relative dynamic import must NOT appear (not an @ specifier)
+    expect(specifiers).not.toContain('./algo');
+    expect(specifiers.some(s => s.startsWith('.'))).toBe(false);
+  });
+
+  it('[BLOCKER] §1.3-2: file with ONLY dynamic imports — does not throw, returns []', () => {
+    // No static imports at all; only dynamic expressions.
+    // Must return an empty array, not throw, not warn.
+    const code = [
+      "const a = import('./chunk-a');",
+      "const b = await import('./chunk-b');",
+      "export {};",
+    ].join('\n');
+
+    const file = tmp(code);
+    let result: ReturnType<typeof extractModuleImports>;
+
+    expect(() => { result = extractModuleImports(file); }).not.toThrow();
+    expect(result!).toEqual([]);
+  });
+
+  it('§1.3-3: template-literal dynamic import — does not crash, static import still returned', () => {
+    // Template literals inside import() can potentially break a naive regex.
+    // The static import must survive regardless.
+    const code = [
+      "import { Auth } from '@modules/auth';",
+      "const mod = import(`./plugins/${name}`);",
+    ].join('\n');
+
+    const file = tmp(code);
+    let result: ReturnType<typeof extractModuleImports>;
+
+    expect(() => { result = extractModuleImports(file); }).not.toThrow();
+
+    const specifiers = result!.map(r => r.specifier);
+    expect(specifiers).toContain('@modules/auth');
+    // Template literal produces no valid @ specifier
+    expect(specifiers.filter(s => !s.startsWith('@'))).toHaveLength(0);
+  });
+
+  it('§1.3-4: multiple static imports interleaved with dynamic imports — all static captured, none omitted', () => {
+    // Guards against the regex consuming tokens from a dynamic import and then
+    // skipping the next static import due to state corruption.
+    const code = [
+      "import { A } from '@modules/auth';",
+      "const lazy1 = import('./lazy');",
+      "import { B } from '@modules/billing';",
+      "const lazy2 = await import('./lazy2');",
+      "import { N } from '@modules/notifications';",
+    ].join('\n');
+
+    const file = tmp(code);
+    let result: ReturnType<typeof extractModuleImports>;
+
+    expect(() => { result = extractModuleImports(file); }).not.toThrow();
+
+    const specifiers = result!.map(r => r.specifier);
+    expect(specifiers).toContain('@modules/auth');
+    expect(specifiers).toContain('@modules/billing');
+    expect(specifiers).toContain('@modules/notifications');
+
+    // Verify line numbers are monotonically increasing (not corrupted by dynamic import tokens)
+    const lines = result!.map(r => r.line);
+    expect(lines[0]).toBeLessThan(lines[1]);
+    expect(lines[1]).toBeLessThan(lines[2]);
+  });
+
+  it('§1.3-5: extractModuleImports on .js file with dynamic import — uses Acorn path, does not throw', () => {
+    // .js files go through the Acorn parse path. Acorn natively supports
+    // dynamic import() expressions (ecmaVersion:"latest"), so this must pass.
+    const code = [
+      "import { users } from '@modules/users';",
+      "const lazy = import('./lazy.js');",
+    ].join('\n');
+
+    const file = tmp(code, '.js');
+    let result: ReturnType<typeof extractModuleImports>;
+
+    expect(() => { result = extractModuleImports(file); }).not.toThrow();
+
+    const specifiers = result!.map(r => r.specifier);
+    expect(specifiers).toContain('@modules/users');
+    expect(specifiers).not.toContain('./lazy.js');
+  });
+});

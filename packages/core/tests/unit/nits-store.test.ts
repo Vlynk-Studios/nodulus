@@ -418,26 +418,24 @@ describe('T-01: loadNitsRegistry — type-level field validation', () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/identifiers/));
   });
 
-  it('T-01b: current behaviour — status:"zombie" (invalid enum) passes shallow check', async () => {
-    // isValidRegistry only checks `=== undefined || === null`, not enum membership.
-    // 'zombie' is a truthy string → the shallow check accepts it.
-    // This test pins the current contract so a future strict enum guard is visible.
+  it('T-01b: returns null when status is not in NitsStatus enum (strict enum guard added)', async () => {
+    // isValidRegistry now validates status against VALID_NITS_STATUSES.
+    // 'zombie' is not in ['active','stale','moved','candidate','deleted'] → rejected.
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.promises.readFile).mockResolvedValue(
       seedRegistry(makeRecord({ status: 'zombie' }))
     );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = await loadNitsRegistry('/mock/project');
 
-    // Shallow check passes — update to toBeNull() if a strict enum guard is added.
-    expect(result).not.toBeNull();
-    expect(result?.modules['mod_a1b2c3d4'].status).toBe('zombie' as any);
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/zombie/));
   });
 
-  it('T-01c: current behaviour — identifiers:[123, 456] (numbers) passes shallow array check', async () => {
-    // isValidRegistry only checks that `identifiers` is not undefined/null.
-    // It does NOT validate that each element is a string.
-    // This test pins the contract: the array is accepted as-is.
+  it('T-01c: identifiers:[123, 456] still accepted — Array.isArray passes, no element-type guard', async () => {
+    // isValidRegistry now uses Array.isArray. [123,456] IS a valid array → accepted.
+    // Element types are not validated. Pin this contract: per-element string check = breaking change.
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.promises.readFile).mockResolvedValue(
       seedRegistry(makeRecord({ identifiers: [123, 456] }))
@@ -448,4 +446,89 @@ describe('T-01: loadNitsRegistry — type-level field validation', () => {
     expect(result).not.toBeNull();
     expect(result?.modules['mod_a1b2c3d4'].identifiers).toEqual([123, 456] as any);
   });
-});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §1.2 [BLOCKER]: nits-store — strict field type validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('§1.2 [BLOCKER]: loadNitsRegistry — strict type validation', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const validBase = {
+    project: 'test',
+    version: NITS_REGISTRY_VERSION,
+    lastCheck: '2024-01-01T00:00:00.000Z',
+  };
+
+  const validRecord = {
+    id: 'mod_a1b2c3d4',
+    name: 'users',
+    path: 'src/modules/users',
+    hash: 'abc1234567',
+    status: 'active',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    lastSeen: '2024-01-01T00:00:00.000Z',
+    identifiers: ['UserService'],
+  };
+
+  const seed = (overrides: Record<string, any>) =>
+    JSON.stringify({
+      ...validBase,
+      modules: { 'mod_a1b2c3d4': { ...validRecord, ...overrides } },
+    });
+
+  it('[BLOCKER] §1.2-1: returns null + descriptive warning when identifiers is null', async () => {
+    // identifiers:null is caught by the `=== null` guard BEFORE Array.isArray.
+    // The warning must identify both the field name and the module record ID.
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.promises.readFile).mockResolvedValue(seed({ identifiers: null }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await loadNitsRegistry('/mock/project');
+
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/identifiers/));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/mod_a1b2c3d4/));
+  });
+
+  it('[BLOCKER] §1.2-2: returns null + warning when status is outside the NitsStatus enum', async () => {
+    // Any value not in ['active','stale','moved','candidate','deleted'] is rejected.
+    // Accepting unknown status values would allow reconcile() to operate on undefined state.
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.promises.readFile).mockResolvedValue(seed({ status: 'zombie' }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await loadNitsRegistry('/mock/project');
+
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/zombie/));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/mod_a1b2c3d4/));
+  });
+
+  it('§1.2-3: all valid NitsStatus values are accepted (regression guard for VALID_NITS_STATUSES)', async () => {
+    // Ensures no legitimate status is accidentally excluded from the set.
+    const statuses = ['active', 'stale', 'moved', 'candidate', 'deleted'] as const;
+    for (const status of statuses) {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.promises.readFile).mockResolvedValue(seed({ status }));
+      const result = await loadNitsRegistry('/mock/project');
+      expect(result, `status '${status}' must be accepted`).not.toBeNull();
+    }
+  });
+
+  it('§1.2-4: returns null when identifiers is a plain object (Array.isArray guard)', async () => {
+    // A sparse array mis-serialised as { '0': 'UserService' } is a common corruption pattern.
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.promises.readFile).mockResolvedValue(
+      seed({ identifiers: { 0: 'UserService' } })
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await loadNitsRegistry('/mock/project');
+
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/identifiers/));
+  });
+});
+

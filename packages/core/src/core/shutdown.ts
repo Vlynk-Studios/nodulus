@@ -76,8 +76,8 @@ export function registerShutdown(options: ShutdownManagerOptions): import('../ty
   // ─── Signal & IPC registration ────────────────────────────────────────────
   // Both signals call the same `shutdown` function.
   // The guard ensures only one invocation actually runs.
-  process.on('SIGINT',  shutdown);
-  process.on('SIGTERM', shutdown);
+  process.once('SIGINT',  shutdown);
+  process.once('SIGTERM', shutdown);
   
   const messageHandler = (msg: any) => {
     if (msg === 'nodulus:shutdown') {

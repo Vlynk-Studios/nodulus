@@ -78,8 +78,16 @@ export async function loadNitsRegistry(cwd: string): Promise<NitsRegistry | null
 }
 
 /**
+ * Valid NitsStatus values — kept in sync with the NitsStatus union type.
+ * A record whose status is not in this set is considered corrupted.
+ */
+const VALID_NITS_STATUSES = new Set<string>([
+  'active', 'stale', 'moved', 'candidate', 'deleted'
+]);
+
+/**
  * Validates the basic structure of a NITS registry object.
- * Also checks each module record for required fields (CODE-2).
+ * Also checks each module record for required fields (CODE-2) and type correctness.
  */
 function isValidRegistry(data: any): data is NitsRegistry {
   if (
@@ -106,6 +114,22 @@ function isValidRegistry(data: any): data is NitsRegistry {
     if (missing.length > 0) {
       console.warn(
         `[System] Warning: Module record "${id}" is missing required fields: ${missing.join(', ')}. Registry considered invalid.`
+      );
+      return false;
+    }
+
+    // Validate status is a known enum value (guards against corrupted/future registries).
+    if (!VALID_NITS_STATUSES.has(m.status)) {
+      console.warn(
+        `[System] Warning: Module record "${id}" has an unrecognised status "${m.status}". Expected one of: ${[...VALID_NITS_STATUSES].join(', ')}. Registry considered invalid.`
+      );
+      return false;
+    }
+
+    // Validate identifiers is an actual array (not just non-null).
+    if (!Array.isArray(m.identifiers)) {
+      console.warn(
+        `[System] Warning: Module record "${id}" has invalid identifiers field (expected Array, got ${typeof m.identifiers}). Registry considered invalid.`
       );
       return false;
     }
