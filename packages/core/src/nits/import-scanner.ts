@@ -40,7 +40,8 @@ export function extractModuleImports(filePath: string): ImportFound[] {
     
     // Regex to match imports: import ... from 'specifier' or import 'specifier'
     // Also matches: export ... from 'specifier'
-    const importRegex = /(?:import|export)\s+(?:[^"';]+\s+from\s+)?['"]([^"';]+)['"]/g;
+    // Now updated for N-52 to support: 'import type { X } from', 'export type { X } from', and dynamic 'import("...")'
+    const importRegex = /(?:import|export)(?:\s+type\s+)?(?:\s+|\s*\()(?:[^"';]+\s+from\s+)?['"]([^"';]+)['"]/g;
     
     let match;
     while ((match = importRegex.exec(code)) !== null) {

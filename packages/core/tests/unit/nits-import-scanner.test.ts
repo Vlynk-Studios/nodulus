@@ -346,6 +346,24 @@ describe('§1.3 [BLOCKER]: extractModuleImports — dynamic import resilience', 
     expect(specifiers.some(s => s.startsWith('.'))).toBe(false);
   });
 
+  it('[BLOCKER] §1.3-1b: captures import type, export type and inline dynamic imports', () => {
+    const code = [
+      "import type { Foo } from '@modules/foo';",
+      "export type { Bar } from '@modules/bar';",
+      "const baz = await import('@modules/baz');"
+    ].join('\n');
+
+    const file = tmp(code);
+    let result: ReturnType<typeof extractModuleImports>;
+
+    expect(() => { result = extractModuleImports(file); }).not.toThrow();
+
+    const specifiers = result!.map(r => r.specifier);
+    expect(specifiers).toContain('@modules/foo');
+    expect(specifiers).toContain('@modules/bar');
+    expect(specifiers).toContain('@modules/baz');
+  });
+
   it('[BLOCKER] §1.3-2: file with ONLY dynamic imports — does not throw, returns []', () => {
     // No static imports at all; only dynamic expressions.
     // Must return an empty array, not throw, not warn.
