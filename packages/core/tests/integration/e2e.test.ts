@@ -63,4 +63,40 @@ describe('E2E Integration', () => {
     const aliases = nodulusInfo.registry.getAllAliases();
     expect(aliases['@modules/notifications']).toBeDefined();
   });
+
+  // ── T-03: expanded HTTP + registry coverage ────────────────────────────────
+
+  it('T-03a: unregistered path → Express returns 404, not a Nodulus stack trace', async () => {
+    const res = await request(appServer).get('/api/this-route-does-not-exist-xyz');
+    expect(res.status).toBe(404);
+    // Response must NOT contain a Nodulus error code
+    const body = typeof res.body === 'object' ? JSON.stringify(res.body) : String(res.text ?? '');
+    expect(body).not.toMatch(/NodulusError/);
+  });
+
+  it('T-03b: registry.getModule("nonExistent") returns undefined and does not throw', () => {
+    expect(() => {
+      const result = nodulusInfo.registry.getModule('nonExistent-xyz-module');
+      expect(result).toBeUndefined();
+    }).not.toThrow();
+  });
+
+  it('T-03c: registry.getAllModules() returns the correct set of module names', () => {
+    const allModules = nodulusInfo.registry.getAllModules();
+    expect(Array.isArray(allModules)).toBe(true);
+    expect(allModules.length).toBe(3);
+    const names = allModules.map((m: any) => m.name).sort();
+    expect(names).toEqual(['auth', 'notifications', 'users']);
+  });
+
+  it('T-03d: GET /api/users returns 200 with the expected user array shape', async () => {
+    const res = await request(appServer).get('/api/users');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+    // Each user entry must have at least a name field
+    const firstUser = res.body[0];
+    expect(firstUser).toHaveProperty('name');
+    expect(typeof firstUser.name).toBe('string');
+  });
 });

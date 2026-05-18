@@ -375,4 +375,77 @@ describe('CODE-2: loadNitsRegistry — per-record field validation', () => {
     expect(result).not.toBeNull();
     expect(result?.modules['mod_a1b2c3d4'].name).toBe('users');
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T-01: Type-level validation — identifiers / status enum
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('T-01: loadNitsRegistry — type-level field validation', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const makeRecord = (overrides: Record<string, any> = {}) => ({
+    id: 'mod_a1b2c3d4',
+    name: 'users',
+    path: 'src/modules/users',
+    hash: 'abc1234567',
+    status: 'active',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    lastSeen: '2024-01-01T00:00:00.000Z',
+    identifiers: [],
+    ...overrides,
+  });
+
+  const seedRegistry = (record: Record<string, any>) =>
+    JSON.stringify({
+      project: 'test',
+      version: NITS_REGISTRY_VERSION,
+      lastCheck: '2024-01-01T00:00:00.000Z',
+      modules: { 'mod_a1b2c3d4': record },
+    });
+
+  it('T-01a: returns null when identifiers is null (null check in isValidRegistry)', async () => {
+    // isValidRegistry checks `m[f] === null` — identifiers:null must be rejected.
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.promises.readFile).mockResolvedValue(
+      seedRegistry(makeRecord({ identifiers: null }))
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await loadNitsRegistry('/mock/project');
+
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/identifiers/));
+  });
+
+  it('T-01b: current behaviour — status:"zombie" (invalid enum) passes shallow check', async () => {
+    // isValidRegistry only checks `=== undefined || === null`, not enum membership.
+    // 'zombie' is a truthy string → the shallow check accepts it.
+    // This test pins the current contract so a future strict enum guard is visible.
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.promises.readFile).mockResolvedValue(
+      seedRegistry(makeRecord({ status: 'zombie' }))
+    );
+
+    const result = await loadNitsRegistry('/mock/project');
+
+    // Shallow check passes — update to toBeNull() if a strict enum guard is added.
+    expect(result).not.toBeNull();
+    expect(result?.modules['mod_a1b2c3d4'].status).toBe('zombie' as any);
+  });
+
+  it('T-01c: current behaviour — identifiers:[123, 456] (numbers) passes shallow array check', async () => {
+    // isValidRegistry only checks that `identifiers` is not undefined/null.
+    // It does NOT validate that each element is a string.
+    // This test pins the contract: the array is accepted as-is.
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.promises.readFile).mockResolvedValue(
+      seedRegistry(makeRecord({ identifiers: [123, 456] }))
+    );
+
+    const result = await loadNitsRegistry('/mock/project');
+
+    expect(result).not.toBeNull();
+    expect(result?.modules['mod_a1b2c3d4'].identifiers).toEqual([123, 456] as any);
+  });
 });

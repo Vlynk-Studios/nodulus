@@ -279,4 +279,25 @@ describe('createApp', () => {
       });
     });
   });
+
+  // ── T-05: nits.enabled:false — registry.json must not be created ────────────
+
+  describe('T-05: createApp() with nits.enabled:false', () => {
+    it('T-05: does not create .nodulus/registry.json when NITS is disabled, and bootstrap succeeds', async () => {
+      await runInTmpApp(validAppStructure, async (tmpDir, app) => {
+        // Boot with NITS disabled
+        const nodulusApp = await createApp(app as any, {
+          nits: { enabled: false }
+        } as any);
+
+        // Bootstrap should complete normally
+        expect(nodulusApp.modules).toHaveLength(1);
+        expect(nodulusApp.modules[0].name).toBe('users');
+
+        // registry.json must NOT exist — NITS was disabled
+        const registryPath = path.join(tmpDir, '.nodulus', 'registry.json');
+        expect(fs.existsSync(registryPath)).toBe(false);
+      });
+    });
+  });
 });

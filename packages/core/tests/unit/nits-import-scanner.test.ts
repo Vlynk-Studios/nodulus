@@ -236,4 +236,54 @@ describe('NITS Import Scanner', () => {
       }
     });
   });
+
+  // ── T-04: dynamic import does not crash extractModuleImports ────────────────
+
+  describe('T-04: extractModuleImports — dynamic imports do not crash', () => {
+    it('T-04a: file with import() expression → does not throw and returns static imports', () => {
+      const code = [
+        "import { Foo } from '@modules/foo';",
+        "const bar = import('./algo');",          // dynamic import
+        "const baz = import(`./dyn-${expr}`);",  // template-literal dynamic import
+      ].join('\n');
+
+      const p = writeTempFile(code, '.ts');
+      tmpFiles.push(p);
+
+      let result: any[];
+      expect(() => { result = extractModuleImports(p); }).not.toThrow();
+
+      // Static import must still be captured
+      expect(result!.some(r => r.specifier === '@modules/foo')).toBe(true);
+    });
+
+    it('T-04b: file with ONLY dynamic imports → returns [] and does not throw', () => {
+      const code = [
+        "const a = import('./a');",
+        "const b = await import('./b');",
+      ].join('\n');
+
+      const p = writeTempFile(code, '.ts');
+      tmpFiles.push(p);
+
+      let result: any[];
+      expect(() => { result = extractModuleImports(p); }).not.toThrow();
+      // No static @modules/* imports → empty array
+      expect(result!).toEqual([]);
+    });
+
+    it('T-04c: mixed static + dynamic imports in a .js file → does not throw', () => {
+      const code = [
+        "import { Auth } from '@modules/auth';",
+        "const lazy = import('./lazy-chunk.js');",
+      ].join('\n');
+
+      const p = writeTempFile(code, '.js');
+      tmpFiles.push(p);
+
+      let result: any[];
+      expect(() => { result = extractModuleImports(p); }).not.toThrow();
+      expect(result!.some(r => r.specifier === '@modules/auth')).toBe(true);
+    });
+  });
 });

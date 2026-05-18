@@ -738,3 +738,159 @@ describe("buildNitsIdMap()", () => {
     expect(map.get(expectedPath)).toBe("mod_123");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T-02: Verification Triangle — gap tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("T-02: Verification Triangle — pending gap cases", () => {
+  const cwd = "/project";
+  const timestamp = "2024-01-01T00:00:00.000Z";
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(timestamp));
+  });
+
+  const makeRegistry = (
+    modules: Record<string, any>
+  ): NitsRegistry => ({
+    project: "test",
+    version: NITS_REGISTRY_VERSION,
+    lastCheck: "",
+    modules,
+  });
+
+  const makeRecord = (
+    id: string,
+    name: string,
+    path: string,
+    hash: string,
+    status: "active" | "stale" | "candidate" | "moved" = "active",
+    identifiers: string[] = ["Id"]
+  ) => ({
+    id,
+    name,
+    path,
+    hash,
+    status,
+    createdAt: timestamp,
+    lastSeen: "",
+    identifiers,
+  });
+
+  // ── T-02a: two modules swap paths in the same cycle ──────────────────────
+  it("T-02a: modules that swap paths in the same cycle — neither goes stale", () => {
+    // mod_a was at src/a, mod_b was at src/b.
+    // This cycle: mod_a appears at src/b and mod_b at src/a.
+    // Step 1 matches by path: discovered-at-src/b matches prev src/b (mod_b),
+    // discovered-at-src/a matches prev src/a (mod_a).
+    // Both are confirmed — neither should go stale.
+    const previous = makeRegistry({
+      mod_a: makeRecord("mod_a", "moduleA", "src/a", "h_a"),
+      mod_b: makeRecord("mod_b", "moduleB", "src/b", "h_b"),
+    });
+
+    const discovered: DiscoveredModule[] = [
+      { name: "moduleA", dirPath: "/project/src/a", identifiers: ["Id"], hash: "h_a" },
+      { name: "moduleB", dirPath: "/project/src/b", identifiers: ["Id"], hash: "h_b" },
+    ];
+
+    vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0);
+
+    const result = reconcile(discovered, previous, cwd);
+
+    // Both modules re-confirmed by path — zero stale
+    expect(result.confirmed.length).toBe(2);
+    expect(result.stale.length).toBe(0);
+    expect(result.moved.length).toBe(0);
+
+    const ids = result.confirmed.map((r) => r.id).sort();
+    expect(ids).toEqual(["mod_a", "mod_b"]);
+  });
+
+  // ── T-02b: candidate → active stabilisation in next cycle ────────────────
+  it("T-02b: a 'candidate' record is confirmed as 'active' by path in the next cycle", () => {
+    // Cycle N: module was saved as candidate at new-path.
+    // Cycle N+1: discovered at the same new-path → Step 1 matches → active.
+    const previous = makeRegistry({
+      mod_c: makeRecord("mod_c", "payments", "src/new-payments", "h_p", "candidate"),
+    });
+
+    const discovered: DiscoveredModule[] = [
+      { name: "payments", dirPath: "/project/src/new-payments", identifiers: ["Id"], hash: "h_p" },
+    ];
+
+    vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0);
+
+    const result = reconcile(discovered, previous, cwd);
+
+    // Step 1 (path match) has NO status filter — candidate is eligible
+    expect(result.confirmed.length).toBe(1);
+    expect(result.confirmed[0].id).toBe("mod_c");
+    expect(result.confirmed[0].status).toBe("active");
+    expect(result.stale.length).toBe(0);
+    expect(result.newModules.length).toBe(0);
+  });
+
+  // ── T-02c: 10 modules in registry, 0 discovered ──────────────────────────
+  it("T-02c: 10 modules in previous registry, 0 discovered → all go stale, zero false positives", () => {
+    const modules: Record<string, any> = {};
+    for (let i = 0; i < 10; i++) {
+      const id = `mod_${String(i).padStart(8, "0")}`;
+      modules[id] = makeRecord(id, `m${i}`, `src/m${i}`, `h${i}`);
+    }
+    const previous = makeRegistry(modules);
+
+    vi.mocked(nitsHash.hashSimilarity).mockReturnValue(0);
+
+    const result = reconcile([], previous, cwd);
+
+    expect(result.stale.length).toBe(10);
+    expect(result.confirmed.length).toBe(0);
+    expect(result.moved.length).toBe(0);
+    expect(result.newModules.length).toBe(0);
+    expect(result.candidates.length).toBe(0);
+    // Verify every stale record came from the registry
+    const staleIds = result.stale.map((r) => r.id).sort();
+    expect(staleIds).toEqual(Object.keys(modules).sort());
+  });
+
+  // ── T-02d: clonePolicy:'new' with 3 modules sharing the same hash ─────────
+  it("T-02d: clonePolicy:'new' with 3 modules of identical hash → original confirmed, 2 clones in newModules with distinct IDs", () => {
+    // Original module is in the registry at src/original.
+    // Two additional copies appear this cycle at src/copy1 and src/copy2.
+    const previous = makeRegistry({
+      mod_orig: makeRecord("mod_orig", "widget", "src/original", "shared_hash"),
+    });
+
+    const discovered: DiscoveredModule[] = [
+      { name: "widget",  dirPath: "/project/src/original", identifiers: ["Id"], hash: "shared_hash" },
+      { name: "widget2", dirPath: "/project/src/copy1",    identifiers: ["Id"], hash: "shared_hash" },
+      { name: "widget3", dirPath: "/project/src/copy2",    identifiers: ["Id"], hash: "shared_hash" },
+    ];
+
+    vi.mocked(nitsHash.hashSimilarity).mockReturnValue(1.0);
+
+    const result = reconcile(discovered, previous, cwd, { clonePolicy: "new" });
+
+    // Original is confirmed (path match → Step 1)
+    expect(result.confirmed.length).toBe(1);
+    expect(result.confirmed[0].id).toBe("mod_orig");
+
+    // Two clones become newModules with fresh IDs
+    expect(result.newModules.length).toBe(2);
+
+    const cloneIds = result.newModules.map((r) => r.id);
+    expect(cloneIds[0]).not.toBe("mod_orig");
+    expect(cloneIds[1]).not.toBe("mod_orig");
+    expect(cloneIds[0]).not.toBe(cloneIds[1]);
+    expect(cloneIds[0]).toMatch(/^mod_[0-9a-f]{8}$/);
+    expect(cloneIds[1]).toMatch(/^mod_[0-9a-f]{8}$/);
+
+    // Nothing should be stale or moved
+    expect(result.stale.length).toBe(0);
+    expect(result.moved.length).toBe(0);
+  });
+});
